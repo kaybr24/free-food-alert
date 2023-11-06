@@ -25,45 +25,45 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 def index():
     return render_template('main.html',title='Hello')
 
-# You will probably not need the routes below, but they are here
-# just in case. Please delete them if you are not using them
+# # You will probably not need the routes below, but they are here
+# # just in case. Please delete them if you are not using them
 
-@app.route('/greet/', methods=["GET", "POST"])
-def greet():
-    if request.method == 'GET':
-        return render_template('greet.html', title='Customized Greeting')
-    else:
-        try:
-            username = request.form['username'] # throws error if there's trouble
-            flash('form submission successful')
-            return render_template('greet.html',
-                                   title='Welcome '+username,
-                                   name=username)
+# @app.route('/greet/', methods=["GET", "POST"])
+# def greet():
+#     if request.method == 'GET':
+#         return render_template('greet.html', title='Customized Greeting')
+#     else:
+#         try:
+#             username = request.form['username'] # throws error if there's trouble
+#             flash('form submission successful')
+#             return render_template('greet.html',
+#                                    title='Welcome '+username,
+#                                    name=username)
 
-        except Exception as err:
-            flash('form submission error'+str(err))
-            return redirect( url_for('index') )
+#         except Exception as err:
+#             flash('form submission error'+str(err))
+#             return redirect( url_for('index') )
 
-@app.route('/formecho/', methods=['GET','POST'])
-def formecho():
-    if request.method == 'GET':
-        return render_template('form_data.html',
-                               method=request.method,
-                               form_data=request.args)
-    elif request.method == 'POST':
-        return render_template('form_data.html',
-                               method=request.method,
-                               form_data=request.form)
-    else:
-        # maybe PUT?
-        return render_template('form_data.html',
-                               method=request.method,
-                               form_data={})
+# @app.route('/formecho/', methods=['GET','POST'])
+# def formecho():
+#     if request.method == 'GET':
+#         return render_template('form_data.html',
+#                                method=request.method,
+#                                form_data=request.args)
+#     elif request.method == 'POST':
+#         return render_template('form_data.html',
+#                                method=request.method,
+#                                form_data=request.form)
+#     else:
+#         # maybe PUT?
+#         return render_template('form_data.html',
+#                                method=request.method,
+#                                form_data={})
 
-@app.route('/testform/')
-def testform():
-    # these forms go to the formecho route
-    return render_template('testform.html')
+# @app.route('/testform/')
+# def testform():
+#     # these forms go to the formecho route
+#     return render_template('testform.html')
 
 
 if __name__ == '__main__':
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     else:
         port = os.getuid()
     # set this local variable to 'wmdb' or your personal or team db
-    db_to_use = 'put_database_name_here_db' 
+    db_to_use = 'wffa_db' 
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     app.debug = True
