@@ -25,6 +25,12 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 def index():
     return render_template('main.html',title='Hello')
 
+@app.route('/search/', methods = ['GET', 'POST'])
+def search():
+    if request.method == 'GET':
+        return 1  #add in HTML
+    else: #request method is post
+        return 0
 # # You will probably not need the routes below, but they are here
 # # just in case. Please delete them if you are not using them
 
