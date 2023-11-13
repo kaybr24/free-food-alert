@@ -23,7 +23,7 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 
 @app.route('/')
 def index():
-    return render_template('main.html',title='Hello')
+    return render_template('main.html',title='Free Food Alert')
 
 # # You will probably not need the routes below, but they are here
 # # just in case. Please delete them if you are not using them
