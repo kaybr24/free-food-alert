@@ -26,12 +26,12 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 def index():
     return render_template('main.html',title='Hello')
 
-@app.route('/search', methods = ['GET', 'POST'])
+@app.route('/search/', methods = ['GET', 'POST'])
 def search_posts():
     conn = dbi.connect()
     if request.method == 'POST':
-        location = request.form['location']
-        allergens = request.form['allergens']
+        location = request.form.getlist('location')
+        allergens = request.form.getlist('allergens')
         date_posted = request.form['date_posted']
 
         search_information = {'location': location, 
@@ -39,7 +39,7 @@ def search_posts():
                                 'date_posted': date_posted}
         data = search.search_for_post(conn, search_information)
         return render_template('search_results.html', data=data)
-    return render_template('search.html')
+    return render_template('search_form.html')
   
 
 if __name__ == '__main__':

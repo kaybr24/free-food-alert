@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search</title>
+  
+</head>
+<body>
+    <h1>Search for Food</h1>
+    <form method="post" action="/search/">
+
+
+        <label for="location">Location:</label>
+        <select name="location" multiple>
+            <option value="none">Choose Locations</option>
+            <option value="Acorns">Acorns</option>
+            <option value="Alumnae Hall">Alumnae Hall</option>
+            <option value="Athletic Maintenance Facility">Athletic Maintenance Facility</option>
+            <option value="Bates Hall">Bates Hall</option>
+            <option value="Beebe Hall">Beebe Hall</option>
+            <option value="Billings">Billings</option>
+            <option value="Boathouse">Boathouse</option>
+            <option value="Campus Police Headquarters">Campus Police Headquarters</option>
+            <option value="Cazenove Hall">Cazenove Hall</option>
+            <option value="Cedar Lodge">Cedar Lodge</option>
+            <option value="Cervantes">Cervantes</option>
+            <option value="Cheever House">Cheever House</option>
+            <option value="Child Study Center">Child Study Center</option>
+            <option value="Claflin Hall">Claflin Hall</option>
+            <option value="Collins Cinema">Collins Cinema</option>
+            <option value="Continuing Education Office">Continuing Education Office</option>
+            <option value="Davis Hall">Davis Hall</option>
+            <option value="Davis Museum">Davis Museum</option>
+            <option value="Davis Parking Facility">Davis Parking Facility</option>
+            <option value="Day Care Center">Day Care Center</option>
+            <option value="Distribution Center">Distribution Center</option>
+            <option value="Dower House">Dower House</option>
+        </select><br>
+
+
+        <label for="allergens">Allergens:</label>
+        <select name="allergens" multiple>
+            <option value="Soy">Soy</option>
+            <option value="Peanuts">Peanuts</option>
+            <option value="Dairy">Dairy</option>
+            <option value="Egg">Egg</option>
+            <option value="Shellfish">Shellfish</option>
+            <option value="Nuts">Nuts</option>
+        </select><br>
+
+        <label for="date_posted">Date Posted:</label>
+        <input type="text" name="date_posted" placeholder="YYYY-MM-DD"><br>
+
+        <input type="submit" value="Search">
+    </form>
+  
+</body>
+</html>
