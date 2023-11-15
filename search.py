@@ -8,16 +8,31 @@ def search_for_post(conn, searched_item):
     and returns the post.
     """
     curs = dbi.dict_cursor(conn)
-    query = "SELECT * FROM food_table WHERE location=%s AND allergens=%s AND date_posted=%s"
-    curs.execute(query, (location, allergens, date_posted))
-    data = cursor.fetchall()
+    query = "SELECT * FROM post WHERE 1=1"
 
-if __name__ == '__main__':
-    db_to_use = 'wffa_db' 
-    print('will connect to {}'.format(db_to_use))
-    dbi.conf(db_to_use)
-    conn = dbi.connect()
-    searched_item = {'location': ['Lulu'],
-                        'allergens': ['eggs'],
-                        'date_posted': ""}
-    print(search_for_post(conn, searched_item))
+    if searched_item['location']:
+        query += " AND location IN %(locations)s"
+
+    if searched_item['allergens']:
+        query += " AND allergens IN %(allergens)s"
+
+    if searched_item['date_posted']:
+        query += " AND date_posted = %(date_posted)s"
+
+    curs.execute(query, {'locations': searched_item['location'], 'allergens': searched_item['allergens'], 'date_posted': searched_item['date_posted']})
+    data = curs.fetchall()
+    return data
+
+    
+# if __name__ == '__main__':
+#     db_to_use = 'wffa_db' 
+#     print('will connect to {}'.format(db_to_use))
+#     dbi.conf(db_to_use)
+#     conn = dbi.connect()
+#     searched_item = {'location': ['Lulu'],
+#                         'allergens': ['eggs'],
+#                         'date_posted': ""}
+#     print(search_for_post(conn, searched_item))
+
+
+
