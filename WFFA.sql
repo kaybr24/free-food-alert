@@ -17,7 +17,7 @@ CREATE TABLE `post` (
   `description` text COMMENT 'Detail field for the free food',
   `post_date` timestamp COMMENT 'when the post was created',
   `expiration_date` timestamp COMMENT 'when the post should be deleted',
-  `location` text COMMENT 'Specific room location of the food',
+  `location` varchar(6) COMMENT 'Specific room location of the food',
   `building` ENUM ('Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
     'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
     'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
