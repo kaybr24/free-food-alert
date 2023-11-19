@@ -58,7 +58,14 @@ def search_posts():
         data = search.search_for_post(conn, search_information)
         return render_template('search_results.html', data=data)
     return render_template('search_form.html', locations=locations, possible_allergens=possible_allergens)
-  
+
+@app.route('/register', methods=['GET', 'POST'])
+def registration():
+    return render_template('register_form.html')
+
+@app.route('/newpost', methods=['GET', 'POST'])
+def new_post():
+    return render_template('new_post_form.html')
 
 if __name__ == '__main__':
     import sys, os
