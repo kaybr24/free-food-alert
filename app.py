@@ -13,6 +13,8 @@ import random
 import search
 import helper
 import insert
+import profile
+import register
 from datetime import datetime, timedelta
 
 app.secret_key = 'your secret here'
@@ -65,31 +67,6 @@ def search_posts():
         return render_template('search_results.html', data=data)
     return render_template('search_form.html', locations=locations, possible_allergens=possible_allergens)
 
-# @app.route('/new_post', methods=['POST'])
-# def new_post():
-#     if request.method == 'POST':
-#         conn = dbi.connect()
-
-#         # Retrieve form data
-#         user_email = request.form['user_email']
-#         food_name = request.form['food_name']
-#         food_description = request.form['food_description']
-#         allergens = request.form.getlist('allergens')
-#         expiration_date = request.form['expiration_date']
-#         building = request.form['building_dropdown']
-#         room_number = request.form['room_number']
-#         # Handle optional image upload
-#         food_image = request.files['food_image'] if 'food_image' in request.files else None
-
-#         #insert into database
-#         post_date = datetime.date(datetime.now())
-#         insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
-#         all_posts = helper.display_posts(conn)
-
-#         # Redirect to a success page or any other page
-#         return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
-#     # Render the form template for GET requests
-#     return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
 
 @app.route('/insert', methods=['GET', 'POST'])
 def new_post():
@@ -120,9 +97,133 @@ def new_post():
     # Render the form template for GET requests
     return render_template('new_post_form.html', title='Free Food Alert')
 
-@app.route('/register', methods=['GET', 'POST'])
+
+@app.route('/registration', methods=['GET', 'POST'])
 def registration():
-    return render_template('register_form.html')
+    if request.method == 'POST':
+        # Retrieve form data
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        full_wellesley_email = request.form['wellesley_email']
+        wellesley_email = full_wellesley_email.split('@')[0]
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        terms_checkbox = request.form.get('terms_checkbox')
+        full_name = request.form['full_name']
+        date = request.form['date']
+
+        # Validate form data (you can add your validation logic here)
+
+        # Check if the password and confirm_password match
+        if password != confirm_password:
+            return render_template('register_form.html', error='Passwords do not match')
+
+        # Check if the terms and conditions checkbox is checked
+        if not terms_checkbox:
+            return render_template('register_form.html', error='Please agree to the terms and conditions')
+        conn=dbi.connect()
+        # Perform user registration (you need to implement this function in your db_module)
+        # result = register.register_user(conn, first_name, last_name, wellesley_email, password, full_name, date)
+        result = register.register_user(conn, full_name, wellesley_email, password, date)
+        if result:
+            # Redirect to a success page or login page
+            return redirect(url_for('login'))
+        else:
+            return render_template('register_form.html', error='Registration failed. Please try again.')
+
+    # Render the registration form for GET requests
+    return render_template('register_form.html', error=None)
+
+
+# @app.route('/register', methods=['GET', 'POST'])
+# def registration():
+#      if request.method == 'POST':
+#         # Retrieve form data
+#         first_name = request.form['first_name']
+#         last_name = request.form['last_name']
+#         wellesley_email = request.form['wellesley_email']
+#         password = request.form['password']
+#         confirm_password = request.form['confirm_password']
+#         terms_checkbox = request.form.get('terms_checkbox')
+#         full_name = request.form['full_name']
+#         date = request.form['date']
+
+#         # Validate form data?
+
+#         # Check if the password and confirm_password match
+#         if password != confirm_password:
+#             return render_template('registration.html', error='Passwords do not match')
+
+#         # Check if the terms and conditions checkbox is checked
+#         if not terms_checkbox:
+#             return render_template('registration.html', error='Please agree to the terms and conditions')
+
+#         conn = dbi.connect()
+#         # Perform user registration (you need to implement this function in your db_module)
+#         result = register.register_user(first_name, last_name, wellesley_email, password, full_name, date)
+
+#         if result:
+#             # Redirect profile page? TO DO!!!!!!
+#             return redirect(url_for('login'))
+#         else:
+#             return render_template('registration.html', error='Registration failed. Please try again.')
+#         return render_template('registration.html', error=None)
+
+"""
+Lets users become food guides (ie, food guide column for user becomes a 1)
+"""
+@app.route('/become_food_guide', methods=['POST'])
+def become_food_guide():
+    # Get the user's email from the session
+    user_email = session.get('user_email')
+
+    if not user_email:
+        #user isn't logged in
+        return redirect(url_for('login'))  # Redirect to login page
+
+    # Update the user's food_guide status in the database
+    conn = dbi.connect()
+    profile.update_food_guide_status(conn, user_email)
+
+    return redirect(url_for('user_profile'))
+
+
+@app.route('/user_profile')
+def user_profile():
+    #get user email from session
+    user_email = session.get('user_email')
+
+    if not user_email: #not logged in
+        return redirect(url_for('login'))
+
+    # Get user data from the database (replace with your logic)
+    user_data = profile.get_user_info(conn, user_email)
+
+    if not user_data:
+        return "User not found."
+
+    return render_template('profile.html', user_data=user_data)
+
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user_email = request.form['user_email']
+        password = request.form['password']
+
+        # Validate user 
+        conn = dbi.connect()
+
+        if profile.validate_user(conn, user_email, password):
+            # Set user_email in the session
+            session['user_email'] = user_email
+
+            # Redirect to the user profile page
+            return redirect(url_for('user_profile'))
+
+    # Render the login form for GET requests
+    return render_template('login.html')
 
 if __name__ == '__main__':
     import sys, os
