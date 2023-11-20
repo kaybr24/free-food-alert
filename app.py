@@ -46,7 +46,7 @@ def search_posts():
      'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
      'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House']
 
-    possible_allergens = ['Soy', 'Peanuts', 'Dairy', 'Eggs', 'Shellfish', 'Nuts', 'Sesame']
+    possible_allergens = ['Soy', 'Peanuts', 'Dairy', 'Eggs', 'Shellfish', 'Nuts', 'Sesame', 'Gluten']
     if request.method == 'POST':
         location = request.form.getlist('location')
         allergens = request.form.getlist('allergens')
