@@ -11,6 +11,8 @@ import cs304dbi as dbi
 
 import random
 import search
+import helper
+from datetime import datetime, timedelta
 
 app.secret_key = 'your secret here'
 # replace that with a random key
@@ -24,7 +26,10 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 
 @app.route('/')
 def index():
-    return render_template('main.html',title='Free Food Alert')
+    conn = dbi.connect()
+    all_posts = helper.display_posts(conn)
+    ## TO-DO: Implement function to remove expired posts from the database
+    return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
 
 @app.route('/search/', methods = ['GET', 'POST'])
 def search_posts():
