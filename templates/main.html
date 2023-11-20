@@ -8,4 +8,17 @@
     about extra food. Our application Food Alert attempts to solve this problem by creating an easy and centralized way for students
     to post news about free food on campus. </p>
 
+<h3>Find free food on campus: </h3>
+
+{% for post in search_results %}
+<pre>
+[picture goes here]<br/>
+<strong>{{post.description}}</strong>
+<em>{{now - post.post_date}} days ago</em> <!--Still struggling with the timedelta-->
+    Location: {{post.building}}, {{post.location}}
+    Allergen Warning: contains {{post.allergens}}
+    Posted by: {{post.user_email}}<br/>
+</pre>
+{% endfor %}
+
 {% endblock %}
