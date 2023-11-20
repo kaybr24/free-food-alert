@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,17 @@
   
     <style>
         label, select, input {
-            margin-bottom: 50px; /* Adjust the value as needed */
+            margin-bottom: 50px; 
         }
     </style>
 
-</head>
+</head> -->
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
 <body>
     <h1>Search for Food</h1>
     <form method="post" action="/search/">
@@ -77,3 +83,4 @@
   
 </body>
 </html>
+{% endblock %}

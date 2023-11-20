@@ -12,6 +12,7 @@ import cs304dbi as dbi
 import random
 import search
 import helper
+import insert
 from datetime import datetime, timedelta
 
 app.secret_key = 'your secret here'
@@ -64,13 +65,64 @@ def search_posts():
         return render_template('search_results.html', data=data)
     return render_template('search_form.html', locations=locations, possible_allergens=possible_allergens)
 
+# @app.route('/new_post', methods=['POST'])
+# def new_post():
+#     if request.method == 'POST':
+#         conn = dbi.connect()
+
+#         # Retrieve form data
+#         user_email = request.form['user_email']
+#         food_name = request.form['food_name']
+#         food_description = request.form['food_description']
+#         allergens = request.form.getlist('allergens')
+#         expiration_date = request.form['expiration_date']
+#         building = request.form['building_dropdown']
+#         room_number = request.form['room_number']
+#         # Handle optional image upload
+#         food_image = request.files['food_image'] if 'food_image' in request.files else None
+
+#         #insert into database
+#         post_date = datetime.date(datetime.now())
+#         insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
+#         all_posts = helper.display_posts(conn)
+
+#         # Redirect to a success page or any other page
+#         return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
+#     # Render the form template for GET requests
+#     return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
+
+@app.route('/insert', methods=['GET', 'POST'])
+def new_post():
+    if request.method == 'POST':
+        conn = dbi.connect()
+
+        # Retrieve form data
+        full_user_email = request.form['user_email']
+        user_email = full_user_email.split('@')[0]
+        food_name = request.form['food_name']
+        food_description = request.form['food_description']
+        allergens = request.form.getlist('allergens')
+        expiration_date = request.form['expiration_date']
+        building = request.form['building_dropdown']
+        room_number = request.form['room_number']
+        # Handle optional image upload
+        food_image = request.files['food_image'] if 'food_image' in request.files else None
+
+        # Insert into the database
+        post_date = datetime.date(datetime.now())
+        insert.insert_post(conn, user_email, food_description, post_date, expiration_date, room_number, building, allergens)
+        # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
+        all_posts = helper.display_posts(conn)
+
+        # Redirect to a success page or any other page
+        return render_template('main.html', title='Free Food Alert', search_results=all_posts, now=datetime.date(datetime.now()))
+
+    # Render the form template for GET requests
+    return render_template('new_post_form.html', title='Free Food Alert')
+
 @app.route('/register', methods=['GET', 'POST'])
 def registration():
     return render_template('register_form.html')
-
-@app.route('/newpost', methods=['GET', 'POST'])
-def new_post():
-    return render_template('new_post_form.html')
 
 if __name__ == '__main__':
     import sys, os
