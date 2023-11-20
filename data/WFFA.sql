@@ -1,3 +1,5 @@
+use wffa_db;
+
 drop table if exists picture; 
 drop table if exists rating;
 drop table if exists post;
@@ -12,12 +14,12 @@ CREATE TABLE `user` (
 );
 
 CREATE TABLE `post` (
-  `post_id` integer PRIMARY KEY COMMENT 'Unique identifier for each food post',
+  `post_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
   `user_email` char(8) COMMENT 'email of guide who made the post',
   `description` text COMMENT 'Detail field for the free food',
   `post_date` timestamp COMMENT 'when the post was created',
   `expiration_date` timestamp COMMENT 'when the post should be deleted',
-  `location` varchar(6) COMMENT 'Specific room location of the food',
+  `location` varchar(30) COMMENT 'Specific room location of the food',
   `building` ENUM ('Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
     'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
     'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
@@ -35,11 +37,11 @@ CREATE TABLE `post` (
      'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
      'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House') 
      COMMENT 'Select one Wellesley campus building where the food is located',
-  `allergens` ENUM ('soy', 'peanuts', 'dairy', 'gluten', 'egg', 'shellfish', 'nuts', 'sesame') COMMENT 'list of allergens present in the food'
+  `allergens` SET ('soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame') COMMENT 'list of allergens present in the food'
 );
 
 CREATE TABLE `rating` (
-  `rate_id` integer PRIMARY KEY COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
+  `rate_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
   `post_id` integer COMMENT 'ID of the post being rated',
   `guide_email` char(8) COMMENT 'email of the guide being rated',
   `rater_email` char(8) COMMENT 'email of the user making the rating',
@@ -48,9 +50,10 @@ CREATE TABLE `rating` (
 
 CREATE TABLE `picture` (
   `post_id` integer COMMENT 'post id that images are associated with',
-  `image_id` integer AUTO_INCREMENT COMMENT 'unique image id',
-  `picture` IMAGE COMMENT 'Image of food item',
-  PRIMARY KEY (`post_id`, `image_id`)
+  `image_id` integer not null AUTO_INCREMENT COMMENT 'unique id for image of food item',
+  PRIMARY KEY (`image_id`),
+  foreign key (post_id) references `post`(post_id) 
+        on delete cascade on update cascade
 );
 
 ALTER TABLE `post` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`);
@@ -60,5 +63,3 @@ ALTER TABLE `rating` ADD FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_em
 ALTER TABLE `rating` ADD FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`);
 
 ALTER TABLE `rating` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`);
-
-ALTER TABLE `image` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`);
