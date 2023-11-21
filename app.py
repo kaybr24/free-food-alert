@@ -25,7 +25,7 @@ app.secret_key = ''.join([ random.choice(('ABCDEFGHIJKLMNOPQRSTUVXYZ' +
 app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 
 @app.route('/')
-def index():
+def index(): 
     conn = dbi.connect()
     all_posts = helper.display_posts(conn)
     ## TO-DO: Implement function to remove expired posts from the database
