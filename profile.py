@@ -16,9 +16,8 @@ def get_user_info(conn, user_email):
 
 def validate_user(conn, user_email, password):
     curs = dbi.dict_cursor(conn)
-
-    curs.execute("SELECT * FROM user WHERE user_email = %s AND password = %s", [user_email, password])
+    curs.execute('''SELECT user_email, password
+                    from user where user_email = %s''', [user_email])
     user = curs.fetchone()
     conn.close()
-
     return user

@@ -15,6 +15,7 @@ import helper
 import insert
 import profile
 import register
+import bcrypt
 from datetime import datetime, timedelta
 
 app.secret_key = 'your secret here'
@@ -26,6 +27,7 @@ app.secret_key = ''.join([ random.choice(('ABCDEFGHIJKLMNOPQRSTUVXYZ' +
 
 # This gets us better error messages for certain common request errors
 app.config['TRAP_BAD_REQUEST_ERRORS'] = True
+
 
 @app.route('/')
 def index():
@@ -112,7 +114,10 @@ def registration():
         full_name = request.form['full_name']
         date = request.form['date']
 
-        # Validate form data (you can add your validation logic here)
+        #deal with password encrypting
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        stored = hashed.decode('utf-8')
+
 
         # Check if the password and confirm_password match
         if password != confirm_password:
@@ -121,53 +126,17 @@ def registration():
         # Check if the terms and conditions checkbox is checked
         if not terms_checkbox:
             return render_template('register_form.html', error='Please agree to the terms and conditions')
+        
         conn=dbi.connect()
-        # Perform user registration (you need to implement this function in your db_module)
-        # result = register.register_user(conn, first_name, last_name, wellesley_email, password, full_name, date)
-        result = register.register_user(conn, full_name, wellesley_email, password, date)
+        result = register.register_user(conn, full_name, wellesley_email, hashed, date)
         if result:
             # Redirect to a success page or login page
-            return redirect(url_for('login'))
+            return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
         else:
             return render_template('register_form.html', error='Registration failed. Please try again.')
 
     # Render the registration form for GET requests
     return render_template('register_form.html', error=None)
-
-
-# @app.route('/register', methods=['GET', 'POST'])
-# def registration():
-#      if request.method == 'POST':
-#         # Retrieve form data
-#         first_name = request.form['first_name']
-#         last_name = request.form['last_name']
-#         wellesley_email = request.form['wellesley_email']
-#         password = request.form['password']
-#         confirm_password = request.form['confirm_password']
-#         terms_checkbox = request.form.get('terms_checkbox')
-#         full_name = request.form['full_name']
-#         date = request.form['date']
-
-#         # Validate form data?
-
-#         # Check if the password and confirm_password match
-#         if password != confirm_password:
-#             return render_template('registration.html', error='Passwords do not match')
-
-#         # Check if the terms and conditions checkbox is checked
-#         if not terms_checkbox:
-#             return render_template('registration.html', error='Please agree to the terms and conditions')
-
-#         conn = dbi.connect()
-#         # Perform user registration (you need to implement this function in your db_module)
-#         result = register.register_user(first_name, last_name, wellesley_email, password, full_name, date)
-
-#         if result:
-#             # Redirect profile page? TO DO!!!!!!
-#             return redirect(url_for('login'))
-#         else:
-#             return render_template('registration.html', error='Registration failed. Please try again.')
-#         return render_template('registration.html', error=None)
 
 """
 Lets users become food guides (ie, food guide column for user becomes a 1)
@@ -214,10 +183,24 @@ def login():
 
         # Validate user 
         conn = dbi.connect()
-
-        if profile.validate_user(conn, user_email, password):
+        user_info = profile.validate_user(conn, user_email, password)
+        if user_info:
             # Set user_email in the session
-            session['user_email'] = user_email
+            # session['user_email'] = user_email
+            stored = user_info['password']
+            hashed2 = bcrypt.hashpw(passwd.encode('utf-8'),
+                            stored.encode('utf-8'))
+            hashed2_str = hashed2.decode('utf-8')
+            if hashed2_str == stored:
+                flash('successfully logged in as '+ user_email)
+                session['username'] = user_email
+                session['uid'] = user_info['user_email']
+                session['logged_in'] = True
+                session['visits'] = 1
+                return redirect( url_for('profile', username=username) )
+            else:
+                flash('login incorrect. Try again or join')
+                return redirect( url_for('index'))
 
             # Redirect to the user profile page
             return redirect(url_for('user_profile'))
