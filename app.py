@@ -131,7 +131,7 @@ def registration():
         result = register.register_user(conn, full_name, wellesley_email, hashed, date)
         if result:
             # Redirect to a success page or login page
-            return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
+            return url_for('index')
         else:
             return render_template('register_form.html', error='Registration failed. Please try again.')
 
