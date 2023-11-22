@@ -173,7 +173,7 @@ def user_profile():
     if not user_data:
         return "User not found."
 
-    return render_template('profile.html', title='View Profile', user_data=user_data)
+    return render_template('profile.html', title='View Profile', user=user_data)
 
 
 
