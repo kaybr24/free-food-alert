@@ -58,7 +58,7 @@ nav ul {
 
 nav > ul > li {
     flex: 0 0 auto;
-    width: 15em; 
+    width: 10em; 
 }
 
 nav button, nav a {

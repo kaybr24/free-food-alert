@@ -9,6 +9,7 @@ CREATE TABLE `user` (
   `user_email` char(8) PRIMARY KEY COMMENT 'Unique identifier for each user',
   `name` varchar(50) COMMENT 'Name of the user',
   `join_date` timestamp COMMENT 'Joined date for the user',
+  `password` char(60) COMMENT 'bcrypt encoded password',
   `food_guide` boolean COMMENT 'Whether user is a food guide or not',
   `post_count` integer COMMENT 'number of posts overall'
 );

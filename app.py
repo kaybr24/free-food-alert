@@ -66,8 +66,8 @@ def search_posts():
                                 'allergens': allergens,
                                 'date_posted': date_posted}
         data = search.search_for_post(conn, search_information)
-        return render_template('search_results.html', data=data)
-    return render_template('search_form.html', locations=locations, possible_allergens=possible_allergens)
+        return render_template('search_results.html', title='Matching Food Posts', data=data)
+    return render_template('search_form.html', title='Filter Food Posts', locations=locations, possible_allergens=possible_allergens)
 
 
 @app.route('/insert', methods=['GET', 'POST'])
@@ -94,10 +94,10 @@ def new_post():
         all_posts = helper.display_posts(conn)
 
         # Redirect to a success page or any other page
-        return render_template('main.html', title='Free Food Alert', search_results=all_posts, now=datetime.date(datetime.now()))
+        return redirect(url_for('index'))
 
     # Render the form template for GET requests
-    return render_template('new_post_form.html', title='Free Food Alert')
+    return render_template('new_post_form.html', title='Insert New Food Posting')
 
 
 @app.route('/registration', methods=['GET', 'POST'])
@@ -121,22 +121,23 @@ def registration():
 
         # Check if the password and confirm_password match
         if password != confirm_password:
-            return render_template('register_form.html', error='Passwords do not match')
+            return render_template('register_form.html', title='Register as a User', error='Passwords do not match')
 
         # Check if the terms and conditions checkbox is checked
         if not terms_checkbox:
-            return render_template('register_form.html', error='Please agree to the terms and conditions')
+            return render_template('register_form.html', title='Register as a User', error='Please agree to the terms and conditions')
         
         conn=dbi.connect()
         result = register.register_user(conn, full_name, wellesley_email, hashed, date)
         if result:
-            # Redirect to a success page or login page
-            return url_for('index')
+            # Redirect to a success page or (currently) login page
+            return redirect(url_for('index'))
         else:
-            return render_template('register_form.html', error='Registration failed. Please try again.')
+            return render_template('register_form.html', title='Register as a User', error='Registration failed. Please try again.')
 
-    # Render the registration form for GET requests
-    return render_template('register_form.html', error=None)
+    else:
+        # Render the registration form for GET requests
+        return render_template('register_form.html', title='Register as a User', error=None)
 
 """
 Lets users become food guides (ie, food guide column for user becomes a 1)
@@ -160,18 +161,19 @@ def become_food_guide():
 @app.route('/user_profile')
 def user_profile():
     #get user email from session
-    user_email = session.get('user_email')
+    user_email = session.get('username')
 
     if not user_email: #not logged in
         return redirect(url_for('login'))
 
     # Get user data from the database (replace with your logic)
+    conn = dbi.connect()
     user_data = profile.get_user_info(conn, user_email)
 
     if not user_data:
         return "User not found."
 
-    return render_template('profile.html', user_data=user_data)
+    return render_template('profile.html', title='View Profile', user_data=user_data)
 
 
 
@@ -184,11 +186,11 @@ def login():
         # Validate user 
         conn = dbi.connect()
         user_info = profile.validate_user(conn, user_email, password)
-        if user_info:
+        if user_info: # the user exists
             # Set user_email in the session
             # session['user_email'] = user_email
             stored = user_info['password']
-            hashed2 = bcrypt.hashpw(passwd.encode('utf-8'),
+            hashed2 = bcrypt.hashpw(password.encode('utf-8'),
                             stored.encode('utf-8'))
             hashed2_str = hashed2.decode('utf-8')
             if hashed2_str == stored:
@@ -197,16 +199,19 @@ def login():
                 session['uid'] = user_info['user_email']
                 session['logged_in'] = True
                 session['visits'] = 1
-                return redirect( url_for('profile', username=username) )
+                # Redirect to the user profile page
+                return redirect( url_for('user_profile') )
             else:
-                flash('login incorrect. Try again or join')
-                return redirect( url_for('index'))
+                flash('login incorrect. Try again or join') #  incorrect password
+                return redirect(url_for('index'))
 
-            # Redirect to the user profile page
-            return redirect(url_for('user_profile'))
-
-    # Render the login form for GET requests
-    return render_template('login.html')
+        else: # incorrect username
+            flash('login incorrect. Try again or join')
+            return redirect(url_for('index'))
+    else:
+        # Render the login form for GET requests
+        print("***************recieved GET login request")
+        return render_template('login.html', title='Log Into Free Food Alert')
 
 if __name__ == '__main__':
     import sys, os
