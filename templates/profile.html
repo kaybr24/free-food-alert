@@ -10,9 +10,10 @@
 <p>Join Date: {{ user.join_date }}</p>
 <p>Post Count: {{ user.post_count }}</p>
 
-{% if user.food_guide == 0 %}
+{% if user.food_guide != 1 %}
   <form action="{{ url_for('become_food_guide') }}" method="post">
     <button type="submit">Become a Food Guide</button>
   </form>
 {% endif %}
+
 {% endblock %}

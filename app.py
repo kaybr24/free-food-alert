@@ -107,6 +107,8 @@ def new_post():
         # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
         all_posts = helper.display_posts(conn)
 
+        insert.update_user_post_count(conn, user_email)
+
         # Redirect to a success page or any other page
         return redirect(url_for('index'))
 
@@ -159,8 +161,8 @@ Lets users become food guides (ie, food guide column for user becomes a 1)
 @app.route('/become_food_guide', methods=['POST'])
 def become_food_guide():
     # Get the user's email from the session
-    user_email = session.get('user_email')
-
+    user_email = session.get('username')
+    print(user_email)
     if not user_email:
         #user isn't logged in
         return redirect(url_for('login'))  # Redirect to login page
