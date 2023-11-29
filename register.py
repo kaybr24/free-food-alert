@@ -10,6 +10,5 @@ def register_user(conn, full_name, wellesley_email, password, date):
     """, [full_name, wellesley_email, password, date])
 
     conn.commit()
-    conn.close()
 
     return True  # successfully registered
