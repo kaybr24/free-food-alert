@@ -1,0 +1,1053 @@
+from flask import (Flask, render_template, make_response, url_for, request,
+                   redirect, flash, session, send_from_directory, jsonify)
+from werkzeug.utils import secure_filename
+app = Flask(__name__)
+
+# one or the other of these. Defaults to MySQL (PyMySQL)
+# change comment characters to switch to SQLite
+
+import cs304dbi as dbi
+# import cs304dbi_sqlite3 as dbi
+
+import random
+import search
+import helper
+import insert
+import profile
+import register
+import bcrypt
+from datetime import datetime, timedelta
+
+app.secret_key = 'your secret here'
+# replace that with a random key
+app.secret_key = ''.join([ random.choice(('ABCDEFGHIJKLMNOPQRSTUVXYZ' +
+                                          'abcdefghijklmnopqrstuvxyz' +
+                                          '0123456789'))
+                           for i in range(20) ])
+
+# This gets us better error messages for certain common request errors
+app.config['TRAP_BAD_REQUEST_ERRORS'] = True
+
+
+@app.route('/')
+def index(): 
+    conn = dbi.connect()
+    all_posts = helper.display_posts(conn)
+    ## TO-DO: Implement function to remove expired posts from the database
+    return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
+
+@app.route('/search/', methods = ['GET', 'POST'])
+def search_posts():
+    conn = dbi.connect()
+    locations=['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
+    'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
+    'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
+    'Collins Cinema', 'Continuing Education Office', 'Davis Hall', 'Davis Museum', 
+    'Davis Parking Facility', 'Day Care Center', 'Distribution Center', 'Dower House', 
+    'East Lodge', 'Fiske House', 'Founders Hall', 'Freeman Hall', 'French House - Carriage', 
+    'French House - Main', 'Golf House', 'Green Hall', 'Grounds', 'Hallowell House', 'Harambee House', 
+    'Hemlock', 'Homestead', 'Horton House', 'Instead', 'Jewett Art Center', 'Keohane Sports Center', 
+    'Lake House', 'Library', 'Lulu Chow Wang Campus Center', 'Margaret Ferguson Greenhouses', 
+    'McAfee Hall', 'Motor Pool', 'Munger Hall', 'Nehoiden House', 'Observatory', 'Orchard Apts', 
+    'Pendleton Hall East', 'Pendleton Hall West', 'Physical Plant', 'Pomeroy Hall', 
+    "President's House", 'Ridgeway Apts', 'Schneider Center', 'Science Center', 'Service Building', 
+    'Severance Hall', 'Shafer Hall', 'Shakespeare', 'Shepard House', 'Simpson Hall', 'Simpson West', 
+    'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
+     'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
+     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House']
+
+    possible_allergens = ['Soy', 'Peanuts', 'Dairy', 'Eggs', 'Shellfish', 'Nuts', 'Sesame', 'Gluten']
+    if request.method == 'POST':
+        location = request.form.getlist('location')
+        allergens = request.form.getlist('allergens')
+        date_posted = request.form['date_posted']
+
+        search_information = {'location': location, 
+                                'allergens': allergens,
+                                'date_posted': date_posted}
+        data = search.search_for_post(conn, search_information)
+        return render_template('search_results.html', title='Matching Food Posts', data=data)
+    return render_template('search_form.html', title='Filter Food Posts', locations=locations, possible_allergens=possible_allergens)
+
+
+@app.route('/insert', methods=['GET', 'POST'])
+def new_post():
+    if request.method == 'POST':
+        conn = dbi.connect()
+
+        # Retrieve form data
+        full_user_email = request.form['user_email']
+        user_email = full_user_email.split('@')[0]
+        food_name = request.form['food_name']
+        food_description = request.form['food_description']
+        allergens = request.form.getlist('allergens')
+        expiration_date = request.form['expiration_date']
+        building = request.form['building_dropdown']
+        room_number = request.form['room_number']
+        # Handle optional image upload
+        food_image = request.files['food_image'] if 'food_image' in request.files else None
+
+        # Insert into the database
+        post_date = datetime.date(datetime.now())
+        insert.insert_post(conn, user_email, food_description, post_date, expiration_date, room_number, building, allergens)
+        # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
+        all_posts = helper.display_posts(conn)
+
+        # Redirect to a success page or any other page
+        return redirect(url_for('index'))
+
+    # Render the form template for GET requests
+    return render_template('new_post_form.html', title='Insert New Food Posting')
+
+
+@app.route('/registration', methods=['GET', 'POST'])
+def registration():
+    if request.method == 'POST':
+        # Retrieve form data
+        first_name = request.form['first_name']
+        last_name = request.form['last_name']
+        full_wellesley_email = request.form['wellesley_email']
+        wellesley_email = full_wellesley_email.split('@')[0]
+        password = request.form['password']
+        confirm_password = request.form['confirm_password']
+        terms_checkbox = request.form.get('terms_checkbox')
+        full_name = request.form['full_name']
+        date = request.form['date']
+
+        #deal with password encrypting
+        hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+        stored = hashed.decode('utf-8')
+
+
+        # Check if the password and confirm_password match
+        if password != confirm_password:
+            return render_template('register_form.html', title='Register as a User', error='Passwords do not match')
+
+        # Check if the terms and conditions checkbox is checked
+        if not terms_checkbox:
+            return render_template('register_form.html', title='Register as a User', error='Please agree to the terms and conditions')
+        
+        conn=dbi.connect()
+        result = register.register_user(conn, full_name, wellesley_email, hashed, date)
+        if result:
+            # Redirect to a success page or (currently) login page
+            return redirect(url_for('index'))
+        else:
+            return render_template('register_form.html', title='Register as a User', error='Registration failed. Please try again.')
+
+    else:
+        # Render the registration form for GET requests
+        return render_template('register_form.html', title='Register as a User', error=None)
+
+"""
+Lets users become food guides (ie, food guide column for user becomes a 1)
+"""
+@app.route('/become_food_guide', methods=['POST'])
+def become_food_guide():
+    # Get the user's email from the session
+    user_email = session.get('user_email')
+
+    if not user_email:
+        #user isn't logged in
+        return redirect(url_for('login'))  # Redirect to login page
+
+    # Update the user's food_guide status in the database
+    conn = dbi.connect()
+    profile.update_food_guide_status(conn, user_email)
+
+    return redirect(url_for('user_profile'))
+
+
+@app.route('/user_profile')
+def user_profile():
+    #get user email from session
+    user_email = session.get('username')
+
+    if not user_email: #not logged in
+        return redirect(url_for('login'))
+
+    # Get user data from the database (replace with your logic)
+    conn = dbi.connect()
+    user_data = profile.get_user_info(conn, user_email)
+
+    if not user_data:
+        return "User not found."
+
+    return render_template('profile.html', title='View Profile', user=user_data)
+
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user_email = request.form['user_email']
+        password = request.form['password']
+
+        # Validate user 
+        conn = dbi.connect()
+        user_info = profile.validate_user(conn, user_email, password)
+        if user_info: # the user exists
+            # Set user_email in the session
+            # session['user_email'] = user_email
+            stored = user_info['password']
+            hashed2 = bcrypt.hashpw(password.encode('utf-8'),
+                            stored.encode('utf-8'))
+            hashed2_str = hashed2.decode('utf-8')
+            if hashed2_str == stored:
+                flash('successfully logged in as '+ user_email)
+                session['username'] = user_email
+                session['uid'] = user_info['user_email']
+                session['logged_in'] = True
+                session['visits'] = 1
+                # Redirect to the user profile page
+                return redirect( url_for('user_profile') )
+            else:
+                flash('login incorrect. Try again or join') #  incorrect password
+                return redirect(url_for('index'))
+
+        else: # incorrect username
+            flash('login incorrect. Try again or join')
+            return redirect(url_for('index'))
+    else:
+        # Render the login form for GET requests
+        print("***************recieved GET login request")
+        return render_template('login.html', title='Log Into Free Food Alert')
+
+if __name__ == '__main__':
+    import sys, os
+    if len(sys.argv) > 1:
+        # arg, if any, is the desired port number
+        port = int(sys.argv[1])
+        assert(port>1024)
+    else:
+        port = os.getuid()
+    # set this local variable to 'wmdb' or your personal or team db
+    db_to_use = 'wffa_db' 
+    print('will connect to {}'.format(db_to_use))
+    dbi.conf(db_to_use)
+    app.debug = True
+    app.run('0.0.0.0',port)
+## some helper functions
+import cs304dbi as dbi
+
+def display_posts(conn):
+    """
+    returns a list of all active posts as dictionaries
+    """
+    curs = dbi.dict_cursor(conn)
+    curs.execute("""
+        select `user_email`, `description`, date(`post_date`) as 'post_date', 
+        date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
+        from post;
+    """)
+    posts = curs.fetchall()
+    return posts
+
+
+if __name__ == '__main__':
+    db_to_use = 'wffa_db' 
+    print('will connect to {}'.format(db_to_use))
+    dbi.conf(db_to_use)
+    conn = dbi.connect()
+    print(display_posts(conn))import cs304dbi as dbi
+
+def insert_post(conn, user_email, description, post_date, expiration_date, location, building, allergens):
+    curs = dbi.dict_cursor(conn)
+   
+
+    curs.execute('''insert into post(user_email, description, post_date, expiration_date, location, building, allergens)
+                    values(%s, %s, %s, %s, %s, %s, %s)''',
+                    [user_email, description, post_date, expiration_date, location, building, ','.join(allergens)])
+    conn.commit()
+import cs304dbi as dbi
+
+def update_food_guide_status(conn, user_email):
+    curs = dbi.dict_cursor(conn)
+    # Update the user's food_guide status to 1
+    curs.execute("UPDATE user SET food_guide = 1 WHERE user_email = %s", [user_email])
+    conn.commit()
+    conn.close()
+
+def get_user_info(conn, user_email):
+    curs = dbi.dict_cursor(conn)
+    curs.execute("SELECT * FROM user WHERE user_email = %s", [user_email])
+    user_data = curs.fetchone()
+    conn.close()
+    return user_data
+
+def validate_user(conn, user_email, password):
+    curs = dbi.dict_cursor(conn)
+    curs.execute('''SELECT user_email, password
+                    from user where user_email = %s''', [user_email])
+    user = curs.fetchone()
+    conn.close()
+    return user
+
+if __name__ == '__main__':
+    db_to_use = 'wffa_db' 
+    print('will connect to {}'.format(db_to_use))
+    dbi.conf(db_to_use)
+    conn = dbi.connect()
+    result = validate_user(conn, 'rd100', '')
+    print(result)
+    if None:
+        print("None is true")
+    elif result:
+        print("dictionary is true")
+    else:
+        print("Only True is true")import cs304dbi as dbi
+
+
+def register_user(conn, full_name, wellesley_email, password, date):
+    curs = dbi.dict_cursor(conn)
+    
+    curs.execute("""
+        INSERT INTO user (name, user_email, password, join_date)
+        VALUES (%s, %s, %s, %s);
+    """, [full_name, wellesley_email, password, date])
+
+    conn.commit()
+    conn.close()
+
+    return True  # successfully registered#Kayley's search file with queries 
+import cs304dbi as dbi
+
+def search_for_post(conn, searched_item):
+    """
+    Given a dictionary if items searched for by the user, 
+    finds if there are any posts with specified search
+    and returns the post.
+    """
+    curs = dbi.dict_cursor(conn)
+    query = "SELECT * FROM post WHERE 1=1"
+
+    if searched_item['location']:
+        query += " AND location IN %(locations)s"
+
+    if searched_item['allergens']:
+        query += " AND allergens IN %(allergens)s"
+
+    if searched_item['date_posted']:
+        query += " AND date_posted = %(date_posted)s"
+
+    curs.execute(query, {'locations': searched_item['location'], 'allergens': searched_item['allergens'], 'date_posted': searched_item['date_posted']})
+    data = curs.fetchall()
+    return data
+
+    
+# if __name__ == '__main__':
+#     db_to_use = 'wffa_db' 
+#     print('will connect to {}'.format(db_to_use))
+#     dbi.conf(db_to_use)
+#     conn = dbi.connect()
+#     searched_item = {'location': ['Lulu'],
+#                         'allergens': ['eggs'],
+#                         'date_posted': ""}
+#     print(search_for_post(conn, searched_item))
+
+
+
+<!doctype html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8'>
+    <!-- for mobile-friendly pages -->
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name=author content="">
+    <title>{{ title }}</title>
+    <link rel='stylesheet' href="{{url_for('static', filename = 'style.css')}}">
+    {% block head_stuff %} {% endblock %}
+</head>
+<body>
+
+{% with messages = get_flashed_messages() %}
+{% if messages %}
+<div id="messages">
+  {% for msg in messages %}
+  <p>{{msg}}</p>
+  {% endfor %}
+</div>
+{% endif %}
+{% endwith %}
+            
+{% block nav %}
+<nav>
+  <ul class="nav-links">
+    <li><a href="{{url_for('index')}}">Home</a></li>
+    <li><a href="{{url_for('search_posts')}}">Search</a></li>
+    <li><a href="{{url_for('new_post')}}">Insert</a></li>
+    <li><a href="{{ url_for('registration') }}">Register</a></li>
+    <li><a href="{{ url_for('user_profile') }}">Profile</a></li>
+    <!--<li><a href="{{url_for('login')}}">Login</a></li>-->
+
+    
+  </ul>
+</nav>
+TO-DO: SEARCH BAR GOES HERE
+{% endblock %}
+
+{% block main_content %}
+<h1>Welcome!</h1>
+{% endblock %}
+
+  <script src="https://code.jquery.com/jquery-3.4.1.min.js"></script>
+  {% block end_scripts %}
+  {% endblock %}
+  
+</body>
+</html>
+{% extends "base.html" %}
+
+{% block main_content %}
+<p>Click to <a href="{{ url_for('index') }}">return to the main page</a>.</p>
+
+<h1>Form Data</h1>
+
+<p>The form was submitted by {{method}}.</p>
+
+<ul>
+    {% for key in form_data.keys() %}
+    <li><b class="key">{{key}}</b>
+        <ul>
+            {# getlist is a special method on Flask multi-dicts #}
+            {# it gets the list of all values for that key #}
+            {% for val in form_data.getlist(key) %}
+            <li>{{val}}</li>
+            {% endfor %}
+        </ul></li>
+    {% endfor %}
+</ul>
+
+{% endblock %}
+{% extends "base.html" %}
+
+{% block main_content %}
+<p>Click to <a href="{{ url_for('index') }}">return to the main page</a>.</p>
+
+<h1>Greetings {{name}}</h1>
+
+<form method="post" action="">
+    <p>Please tell us your <label for="username">name: <input type="text" name="username"></label></p>
+    <p><input type="submit"></p>
+</form>
+
+{% endblock %}
+{% extends "base.html" %}
+
+{% block main_content %}
+  <h2>Login</h2>
+  <form action="{{ url_for('login') }}" method="post">
+    <label for="user_email">Email:</label>
+    <input type="text" id="user_email" name="user_email" required>
+    <br>
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password" required>
+    <br>
+    <input type="submit" value="Login">
+  </form>
+{% endblock %}
+{% extends "base.html" %}
+
+{% block main_content %}
+<h1>Welcome to the Wellesley College Free Food Alert!</h1>
+
+<p>Many events occur on Wellesley College's campus, oftentimes leaving behind free, excess food that students are not aware of. 
+    Furthermore, there currently exists no efficient and easy way for students to communicate with each other and spread awareness 
+    about extra food. Our application Food Alert attempts to solve this problem by creating an easy and centralized way for students
+    to post news about free food on campus. </p>
+
+<h3>Find free food on campus: </h3>
+
+{% for post in search_results %}
+<pre>
+[picture goes here]<br/>
+<strong>{{post.description}}</strong>
+<em>{{now - post.post_date}} days ago</em> <!--Still struggling with the timedelta-->
+    Location: {{post.building}}, {{post.location}}
+    Allergen Warning: contains {{post.allergens}}
+    Posted by: {{post.user_email}}<br/>
+</pre>
+{% endfor %}
+
+{% endblock %}
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
+  <h1>Create a New Post</h1>
+
+  <form action="{{ url_for('new_post') }}" method="post" enctype="multipart/form-data">
+    <!-- User email -->
+    <h2>User email:</h2>
+    <label for="user_email">What is your email address?:</label>
+    <input type="email" id="user_email" name="user_email" required>
+    <br>
+
+    <!-- Food Item and Description -->
+    <h2>Food Item and Description:</h2>
+    <label for="food_name">Name of Food:</label>
+    <input type="text" id="food_name" name="food_name" required>
+    <br>
+
+    <label for="food_description">Describe the food item:</label>
+    <textarea id="food_description" name="food_description" rows="4" required></textarea>
+    <br>
+
+    <!-- Allergens -->
+    <!-- <h2>Allergens:</h2> -->
+    <!-- <label for="allergens">Select known allergens (check all that apply):</label> -->
+    <!-- <br>
+    <select id="allergens" name="allergens[]" multiple required>
+    <option value="soy">Soy</option>
+    <option value="peanuts">Peanuts</option>
+    <option value="dairy">Dairy</option>
+    <option value="gluten">Gluten</option>
+    <option value="egg">Egg</option>
+    <option value="shellfish">Shellfish</option>
+    <option value="nuts">Nuts</option>
+    <option value="sesame">Sesame</option>
+    <option value="none">None</option>
+    </select>
+    <br> -->
+
+    <!-- Allergens -->
+<h2>Allergens:</h2>
+<label>Select known allergens (check all that apply):</label>
+<br>
+<input type="checkbox" id="soy" name="allergens[]" value="soy">
+<label for="soy">Soy</label>
+
+<input type="checkbox" id="peanuts" name="allergens[]" value="peanuts">
+<label for="peanuts">Peanuts</label>
+
+<input type="checkbox" id="dairy" name="allergens[]" value="dairy">
+<label for="dairy">Dairy</label>
+
+<input type="checkbox" id="gluten" name="allergens[]" value="gluten">
+<label for="gluten">Gluten</label>
+
+<input type="checkbox" id="egg" name="allergens[]" value="egg">
+<label for="egg">Egg</label>
+
+<input type="checkbox" id="shellfish" name="allergens[]" value="shellfish">
+<label for="shellfish">Shellfish</label>
+
+<input type="checkbox" id="nuts" name="allergens[]" value="nuts">
+<label for="nuts">Nuts</label>
+
+<input type="checkbox" id="sesame" name="allergens[]" value="sesame">
+<label for="sesame">Sesame</label>
+
+<input type="checkbox" id="none" name="allergens[]" value="none">
+<label for="none">None</label>
+<br>
+
+
+    <!-- Expiration Date -->
+    <h2>Expiration Date:</h2>
+    <label for="expiration_date">Date and Time:</label>
+    <input type="datetime-local" id="expiration_date" name="expiration_date" required>
+    <br>
+
+    <!-- Building -->
+    <h2>Building:</h2>
+    <label for="building_dropdown">Where is the food located (building dropdown):</label>
+    <select id="building_dropdown" name="building_dropdown" required>
+    <option value="Acorns">Acorns</option>
+    <option value="Alumnae Hall">Alumnae Hall</option>
+    <option value="Athletic Maintenance Facility">Athletic Maintenance Facility</option>
+    <option value="Bates Hall">Bates Hall</option>
+    <option value="Beebe Hall">Beebe Hall</option>
+    <option value="Billings">Billings</option>
+    <option value="Boathouse">Boathouse</option>
+    <option value="Campus Police Headquarters">Campus Police Headquarters</option>
+    <option value="Cazenove Hall">Cazenove Hall</option>
+    <option value="Cedar Lodge">Cedar Lodge</option>
+    <option value="Cervantes">Cervantes</option>
+    <option value="Cheever House">Cheever House</option>
+    <option value="Child Study Center">Child Study Center</option>
+    <option value="Claflin Hall">Claflin Hall</option>
+    <option value="Collins Cinema">Collins Cinema</option>
+    <option value="Continuing Education Office">Continuing Education Office</option>
+    <option value="Davis Hall">Davis Hall</option>
+    <option value="Davis Museum">Davis Museum</option>
+    <option value="Davis Parking Facility">Davis Parking Facility</option>
+    <option value="Day Care Center">Day Care Center</option>
+    <option value="Distribution Center">Distribution Center</option>
+    <option value="Dower House">Dower House</option>
+    <option value="East Lodge">East Lodge</option>
+    <option value="Fiske House">Fiske House</option>
+    <option value="Founders Hall">Founders Hall</option>
+    <option value="Freeman Hall">Freeman Hall</option>
+    <option value="French House - Carriage">French House - Carriage</option>
+    <option value="French House - Main">French House - Main</option>
+    <option value="Golf House">Golf House</option>
+    <option value="Green Hall">Green Hall</option>
+    <option value="Grounds">Grounds</option>
+    <option value="Hallowell House">Hallowell House</option>
+    <option value="Harambee House">Harambee House</option>
+    <option value="Hemlock">Hemlock</option>
+    <option value="Homestead">Homestead</option>
+    <option value="Horton House">Horton House</option>
+    <option value="Instead">Instead</option>
+    <option value="Jewett Art Center">Jewett Art Center</option>
+    <option value="Keohane Sports Center">Keohane Sports Center</option>
+    <option value="Lake House">Lake House</option>
+    <option value="Library">Library</option>
+    <option value="Lulu Chow Wang Campus Center">Lulu Chow Wang Campus Center</option>
+    <option value="Margaret Ferguson Greenhouses">Margaret Ferguson Greenhouses</option>
+    <option value="McAfee Hall">McAfee Hall</option>
+    <option value="Motor Pool">Motor Pool</option>
+    <option value="Munger Hall">Munger Hall</option>
+    <option value="Nehoiden House">Nehoiden House</option>
+    <option value="Observatory">Observatory</option>
+    <option value="Orchard Apts">Orchard Apts</option>
+    <option value="Pendleton Hall East">Pendleton Hall East</option>
+    <option value="Pendleton Hall West">Pendleton Hall West</option>
+    <option value="Physical Plant">Physical Plant</option>
+    <option value="Pomeroy Hall">Pomeroy Hall</option>
+    <option value="President's House">President's House</option>
+    <option value="Ridgeway Apts">Ridgeway Apts</option>
+    <option value="Schneider Center">Schneider Center</option>
+    <option value="Science Center">Science Center</option>
+    <option value="Service Building">Service Building</option>
+    <option value="Severance Hall">Severance Hall</option>
+    <option value="Shafer Hall">Shafer Hall</option>
+    <option value="Shakespeare">Shakespeare</option>
+    <option value="Shepard House">Shepard House</option>
+    <option value="Simpson Hall">Simpson Hall</option>
+    <option value="Simpson West">Simpson West</option>
+    <option value="Slater International Center">Slater International Center</option>
+    <option value="Stone Center">Stone Center</option>
+    <option value="Stone Hall">Stone Hall</option>
+    <option value="Tower Court East">Tower Court East</option>
+    <option value="Tower Court West">Tower Court West</option>
+    <option value="Trade Shops Building">Trade Shops Building</option>
+    <option value="Tau Zeta Epsilon">Tau Zeta Epsilon</option>
+    <option value="Waban House">Waban House</option>
+    <option value="Weaver House">Weaver House</option>
+    <option value="Webber Cottage">Webber Cottage</option>
+    <option value="Wellesley College Club">Wellesley College Club</option>
+    <option value="West Lodge">West Lodge</option>
+    <option value="Whitin House">Whitin House</option>
+    <option value="Zeta Alpha House">Zeta Alpha House</option>
+    </select>
+    <br>
+
+    <!-- Location -->
+    <h2>Location:</h2>
+    <label for="room_number">Where is the food located (room number):</label>
+    <input type="text" id="room_number" name="room_number" required>
+    <br>
+
+    <!-- Picture(s) of the Food -->
+    <h2>Picture(s) of the Food (Optional):</h2>
+    <label for="food_image">Upload image:</label>
+    <input type="file" id="food_image" name="food_image" accept="image/*">
+    <br>
+
+    <!-- Submit Button -->
+    <input type="submit" value="Submit">
+  </form>
+{% endblock %}
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
+<h2>User Profile</h2>
+<p>Email: {{ user.user_email }}</p>
+<p>Name: {{ user.name }}</p>
+<p>Join Date: {{ user.join_date }}</p>
+<p>Post Count: {{ user.post_count }}</p>
+
+{% if user.food_guide == 0 %}
+  <form action="{{ url_for('become_food_guide') }}" method="post">
+    <button type="submit">Become a Food Guide</button>
+  </form>
+{% endif %}
+{% endblock %}
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
+  <h1>Register with Food Alert</h1>
+
+  <form action="{{ url_for('registration') }}" method="post">
+    <!-- Personal Information -->
+    <h2>Personal Information:</h2>
+    <label for="first_name">First Name:</label>
+    <input type="text" id="first_name" name="first_name" required>
+    <br>
+    <label for="last_name">Last Name:</label>
+    <input type="text" id="last_name" name="last_name" required>
+    <br>
+
+    <label for="wellesley_email">Wellesley College Email:</label>
+    <input type="text" id="wellesley_email" name="wellesley_email" required>
+    <br>
+
+    <label for="password">Password (must be at least 8 characters):</label>
+    <input type="password" id="password" name="password" minlength="8" required>
+    <br>
+
+    <label for="confirm_password">Confirm Password:</label>
+    <input type="password" id="confirm_password" name="confirm_password" required>
+    <br>
+
+    <!-- Terms and Conditions -->
+    <h2>Terms and Conditions:</h2>
+    <input type="checkbox" id="terms_checkbox" name="terms_checkbox" required>
+    <label for="terms_checkbox">I agree to the terms and conditions</label>
+    <br>
+
+    <!-- Consent and Agreement -->
+    <h2>Consent and Agreement:</h2>
+    <p>I have read and understood the terms and conditions stated above and hereby agree to abide by them.</p>
+    <label for="full_name">Your Full Name:</label>
+    <input type="text" id="full_name" name="full_name" required>
+    <br>
+
+    <label for="date">Date:</label>
+    <input type="date" id="date" name="date" required>
+    <br>
+
+    <!-- Submit Button -->
+    <input type="submit" value="Submit">
+  </form>
+{% endblock %}
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel='stylesheet' href="{{url_for('static', filename = 'style.css')}}">
+
+    <title>Search</title>
+  
+    <style>
+        label, select, input {
+            margin-bottom: 50px; 
+        }
+    </style>
+
+</head> -->
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
+<body>
+    <h1>Search for Food</h1>
+    <form method="post" action="/search/">
+        <div class="location-menu">
+        <label for="location">Location:</label>
+        <select name="location" multiple>
+            {% for l in locations %}
+            <option value="{{ l }}">{{ l }}</option>
+            {% endfor %}
+
+        </select><br>
+    </div>
+
+        <label for="allergens">Allergens:</label>
+        <select name="allergens" multiple>
+            {% for a in possible_allergens %}
+            <option value="{{ a }}">{{ a }}</option>
+            {% endfor %}
+        </select><br>
+
+        <label for="date_posted">Date Posted:</label>
+        <input type="text" name="date_posted" placeholder="YYYY-MM-DD"><br>
+
+        <input type="submit" value="Search">
+    </form>
+  
+</body>
+</html>
+{% endblock %}<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel='stylesheet' href="{{url_for('static', filename = 'style.css')}}">
+
+    <title>Search Results</title>
+</head>
+{% block nav %}
+<nav>
+  <ul>
+    <li><a href="{{url_for('index')}}">home</a></li>
+    <li><a href="{{url_for('search_posts')}}">search</a></li>
+
+    
+  </ul>
+</nav>
+{% endblock %}
+<body>
+    <h1>Search Results</h1>
+    {% if data %}
+        <table>
+            <tr>
+                <th>Location</th>
+                <th>Allergens</th>
+                <th>Date Posted</th>
+            </tr>
+            {% for row in data %}
+                <tr>
+                    <td>{{ row.location }}</td>
+                    <td>{{ row.allergens }}</td>
+                    <td>{{ row.date_posted }}</td>
+                </tr>
+            {% endfor %}
+        </table>
+    {% else %}
+        <p>No results found.</p>
+    {% endif %}
+    <a href="/search">Back to Search</a>
+</body>
+</html>
+{% extends "base.html" %}
+
+{% block main_content %}
+<p>Click to <a href="{{ url_for('index') }}">return to the main page</a>.</p>
+
+<h1>Test Forms</h1>
+
+<h2>POST form</h2>
+
+<form method="post" action="{{url_for('formecho')}}">
+<p><label>Name:
+    <input required type="text" name="user" size="50" placeholder="Arthur, King of the Britons"></label></p>
+
+<p><label>Quest:
+    <textarea required name="quest" rows="3" cols="50" placeholder="To seek the grail"></textarea>
+</label></p>
+
+<p><label>Favorite Color?
+        <select required name="color">
+            <option value="">choose</option>
+            <option>Blue</option>
+            <option value="yellow">No, yel...</option>
+        </select>
+</label></p>
+
+<p><input type="submit" value="process form">
+</form>
+
+<h2>GET form</h2>
+
+<form method="get" action="{{url_for('formecho')}}">
+<p><label>Name:
+    <input required type="text" name="user" size="50" placeholder="Arthur, King of the Britons"></label></p>
+
+<p><label>Quest:
+    <textarea required name="quest" rows="3" cols="50" placeholder="To seek the grail"></textarea>
+</label></p>
+
+<p><label>Favorite Color?
+        <select required name="color">
+            <option value="">choose</option>
+            <option>Blue</option>
+            <option value="yellow">No, yel...</option>
+        </select>
+</label></p>
+
+<p><input type="submit" value="process form">
+</form>
+
+{% endblock %}
+/* the --color-header and others are CSS variables, which we access later. 
+*/
+
+HTML {
+    --color-header: #007ea9;  /* color for H1-H6 and others. was deepskyblue but poor contrast. */
+    --color-hilite: #b50000;  /* was red, but this avoids WAVE contrast errors */ 
+    --color-focus: #56B929;
+    --font-family: Verdana;
+    font-family: var(--font-family)
+}
+
+.location-menu {
+    min-width: 350px;
+  }
+  
+  select {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    font-size: 1.15rem;
+    padding: 0.675em 6em 0.675em 1em;
+    background-color: #fff;
+    border: 1px solid #caced1;
+    border-radius: 0.25rem;
+    color: #000;
+    cursor: pointer;
+  }
+
+/* For flashed messages; make them stand out using red and italics */
+
+#messages {
+    color: var(--color-hilite);
+    font-style: italic;
+}
+
+
+h1 {
+    font-size: 200%;
+    color: var(--color-header);
+}
+
+h2, h3 {
+    color: var(--color-header);
+}
+    
+
+/* for a simple navbar. Talk to Scott if you want drop-downs. */
+nav > ul {
+    display: flex;
+    flex-direction: row;
+}
+
+nav ul {
+    list-style-type: none;
+    margin: 0px;
+    padding: 0px;
+}
+
+nav > ul > li {
+    flex: 0 0 auto;
+    width: 10em; 
+}
+
+nav button, nav a {
+    display: block;
+    box-sizing: border-box; /* easier to make button and A the same size */
+    width: 100%;
+    height: 40px;
+    padding: 0px;
+    padding-bottom: 5px;
+    background-color: var(--color-header); /* was #3498db */
+    border: 2px solid black;
+    border-radius: 5px;
+    cursor: pointer;
+    /* Firefox uses font -apple-system unless I repeat the font spec here. */
+    font-family: var(--font-family);
+    font-weight: bold;
+    font-size: 1.4rem;
+}
+
+/* Only the top-level buttons are centered; lower ones are left-aligned. */
+nav > ul > li > button , nav > ul > li > a {
+    text-align: center;
+}
+
+/* because of the margin trick, this can only be used for the last element */
+
+nav li.right {
+    margin-left: auto;
+}
+
+nav button:hover, button:focus, nav a:hover, nav a:focus {
+    background-color: var(--color-focus);
+}
+
+use wffa_db;
+
+insert into user(`user_email`, `name`, `join_date`, `food_guide`, `post_count`)
+values
+	('kb102', 'Kayla Brand', '11-06-23', True, 0),
+    ('fy100', 'Jennifer Yu', '01-08-02', False, 0),
+    ('kw102', 'Kayley Wang', '29-05-24', True, 30),
+    ('mm999', 'Mickey Mouse', '23-12-10', False, 0);
+
+insert into post(`post_id`, `user_email`, `description`, `post_date`, `expiration_date`, `location`, `building`, `allergens`)
+values
+    (NULL, 'kw102', 'marshmallows, chocolate, and graham crackers', NOW(), '23-11-30', 'Bates Living Room', 'Bates Hall', 'gluten'),
+    (NULL, 'mm999', 'cheese', '00-01-01', NULL, 'room 413', 'Lulu Chow Wang Campus Center', NULL), 
+    (NULL, 'kb102', 'bagels and lox', '23-11-20', '24-01-01', 'ASTRO conference room', 'Observatory', 'eggs,gluten,sesame,dairy');
+
+
+insert into rating(`rate_id`, `post_id`, `guide_email`, `rater_email`, `rating`)
+values
+    (NULL, 3, 'kb102', 'fy100', 4),
+    (NULL, 3, 'kb102', 'mm999', 5);
+
+insert into `picture`(`post_id`, `image_id`);
+values
+    (1, 0), /*ERROR: auto-increment is not working?*/
+    (1, 1),
+    (3, 2);
+
+    use wffa_db;
+
+drop table if exists picture; 
+drop table if exists rating;
+drop table if exists post;
+drop table if exists user;
+
+CREATE TABLE `user` (
+  `user_email` char(8) PRIMARY KEY COMMENT 'Unique identifier for each user',
+  `name` varchar(50) COMMENT 'Name of the user',
+  `join_date` timestamp COMMENT 'Joined date for the user',
+  `password` char(60) COMMENT 'bcrypt encoded password',
+  `food_guide` boolean COMMENT 'Whether user is a food guide or not',
+  `post_count` integer COMMENT 'number of posts overall'
+);
+
+CREATE TABLE `post` (
+  `post_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
+  `user_email` char(8) COMMENT 'email of guide who made the post',
+  `description` text COMMENT 'Detail field for the free food',
+  `post_date` timestamp COMMENT 'when the post was created',
+  `expiration_date` timestamp COMMENT 'when the post should be deleted',
+  `location` varchar(30) COMMENT 'Specific room location of the food',
+  `building` ENUM ('Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
+    'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
+    'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
+    'Collins Cinema', 'Continuing Education Office', 'Davis Hall', 'Davis Museum', 
+    'Davis Parking Facility', 'Day Care Center', 'Distribution Center', 'Dower House', 
+    'East Lodge', 'Fiske House', 'Founders Hall', 'Freeman Hall', 'French House - Carriage', 
+    'French House - Main', 'Golf House', 'Green Hall', 'Grounds', 'Hallowell House', 'Harambee House', 
+    'Hemlock', 'Homestead', 'Horton House', 'Instead', 'Jewett Art Center', 'Keohane Sports Center', 
+    'Lake House', 'Library', 'Lulu Chow Wang Campus Center', 'Margaret Ferguson Greenhouses', 
+    'McAfee Hall', 'Motor Pool', 'Munger Hall', 'Nehoiden House', 'Observatory', 'Orchard Apts', 
+    'Pendleton Hall East', 'Pendleton Hall West', 'Physical Plant', 'Pomeroy Hall', 
+    "President's House", 'Ridgeway Apts', 'Schneider Center', 'Science Center', 'Service Building', 
+    'Severance Hall', 'Shafer Hall', 'Shakespeare', 'Shepard House', 'Simpson Hall', 'Simpson West', 
+    'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
+     'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
+     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House') 
+     COMMENT 'Select one Wellesley campus building where the food is located',
+  `allergens` SET ('soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame') COMMENT 'list of allergens present in the food'
+);
+
+CREATE TABLE `rating` (
+  `rate_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
+  `post_id` integer COMMENT 'ID of the post being rated',
+  `guide_email` char(8) COMMENT 'email of the guide being rated',
+  `rater_email` char(8) COMMENT 'email of the user making the rating',
+  `rating` ENUM ('1', '2', '3', '4', '5') COMMENT 'star-value of the rating'
+);
+
+CREATE TABLE `picture` (
+  `post_id` integer COMMENT 'post id that images are associated with',
+  `image_id` integer not null AUTO_INCREMENT COMMENT 'unique id for image of food item',
+  PRIMARY KEY (`image_id`),
+  foreign key (post_id) references `post`(post_id) 
+        on delete cascade on update cascade
+);
+
+ALTER TABLE `post` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`);
+
+ALTER TABLE `rating` ADD FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`);
+
+ALTER TABLE `rating` ADD FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`);
+
+ALTER TABLE `rating` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`);
