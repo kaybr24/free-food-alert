@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -6,31 +6,32 @@
     <link rel='stylesheet' href="{{url_for('static', filename = 'style.css')}}">
 
     <title>Search Results</title>
-</head>
-{% block nav %}
-<nav>
-  <ul>
-    <li><a href="{{url_for('index')}}">home</a></li>
-    <li><a href="{{url_for('search_posts')}}">search</a></li>
+</head> -->
+{% extends "base.html" %}
 
-    
-  </ul>
-</nav>
+{% block head_stuff %}
 {% endblock %}
+
+{% block main_content %}
 <body>
     <h1>Search Results</h1>
     {% if data %}
         <table>
             <tr>
-                <th>Location</th>
+                <th>Building</th>
                 <th>Allergens</th>
+                <th>Description</th>
+                <th>Posted By</th>
                 <th>Date Posted</th>
+
             </tr>
             {% for row in data %}
                 <tr>
-                    <td>{{ row.location }}</td>
-                    <td>{{ row.allergens }}</td>
-                    <td>{{ row.date_posted }}</td>
+                    <td>{{ row['building'] }}</td>
+                    <td>{{ row['allergens'] }}</td>
+                    <td>{{ row['description'] }}</td>
+                    <td>{{ row['user_email'] }}</td>
+                    <td>{{ row['post_date'] }}</td>
                 </tr>
             {% endfor %}
         </table>
@@ -40,3 +41,4 @@
     <a href="/search">Back to Search</a>
 </body>
 </html>
+{% endblock %}

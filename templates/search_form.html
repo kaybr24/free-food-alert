@@ -22,10 +22,10 @@
 {% block main_content %}
 <body>
     <h1>Search for Food</h1>
-    <form method="post" action="/search/">
+    <form method="post" action="{{ url_for('search_posts') }}">
         <div class="location-menu">
         <label for="location">Location:</label>
-        <select name="location" multiple>
+        <select multiple name="location" >
             {% for l in locations %}
             <option value="{{ l }}">{{ l }}</option>
             {% endfor %}
@@ -33,12 +33,11 @@
         </select><br>
     </div>
 
-        <label for="allergens">Allergens:</label>
-        <select name="allergens" multiple>
+        <label for="allergens">Allergens:</label><br>
             {% for a in possible_allergens %}
-            <option value="{{ a }}">{{ a }}</option>
+            <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
             {% endfor %}
-        </select><br>
+       <br>
 
         <label for="date_posted">Date Posted:</label>
         <input type="text" name="date_posted" placeholder="YYYY-MM-DD"><br>

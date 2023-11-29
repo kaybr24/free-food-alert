@@ -23,54 +23,43 @@
     <textarea id="food_description" name="food_description" rows="4" required></textarea>
     <br>
 
-    <!-- Allergens -->
-    <!-- <h2>Allergens:</h2> -->
-    <!-- <label for="allergens">Select known allergens (check all that apply):</label> -->
-    <!-- <br>
-    <select id="allergens" name="allergens[]" multiple required>
-    <option value="soy">Soy</option>
-    <option value="peanuts">Peanuts</option>
-    <option value="dairy">Dairy</option>
-    <option value="gluten">Gluten</option>
-    <option value="egg">Egg</option>
-    <option value="shellfish">Shellfish</option>
-    <option value="nuts">Nuts</option>
-    <option value="sesame">Sesame</option>
-    <option value="none">None</option>
-    </select>
-    <br> -->
-
-    <!-- Allergens -->
 <h2>Allergens:</h2>
 <label>Select known allergens (check all that apply):</label>
 <br>
-<input type="checkbox" id="soy" name="allergens[]" value="soy">
+
+<label for="allergens">Allergens:</label><br>
+            {% for a in possible_allergens %}
+            <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
+            {% endfor %}
+       <br>
+<!--        
+<input type="checkbox" id="soy" name="allergens" value="soy">
 <label for="soy">Soy</label>
 
-<input type="checkbox" id="peanuts" name="allergens[]" value="peanuts">
+<input type="checkbox" id="peanuts" name="allergens" value="peanuts">
 <label for="peanuts">Peanuts</label>
 
-<input type="checkbox" id="dairy" name="allergens[]" value="dairy">
+<input type="checkbox" id="dairy" name="allergens" value="dairy">
 <label for="dairy">Dairy</label>
 
-<input type="checkbox" id="gluten" name="allergens[]" value="gluten">
+<input type="checkbox" id="gluten" name="allergens" value="gluten">
 <label for="gluten">Gluten</label>
 
-<input type="checkbox" id="egg" name="allergens[]" value="egg">
+<input type="checkbox" id="egg" name="allergens" value="egg">
 <label for="egg">Egg</label>
 
-<input type="checkbox" id="shellfish" name="allergens[]" value="shellfish">
+<input type="checkbox" id="shellfish" name="allergens" value="shellfish">
 <label for="shellfish">Shellfish</label>
 
-<input type="checkbox" id="nuts" name="allergens[]" value="nuts">
+<input type="checkbox" id="nuts" name="allergens" value="nuts">
 <label for="nuts">Nuts</label>
 
-<input type="checkbox" id="sesame" name="allergens[]" value="sesame">
+<input type="checkbox" id="sesame" name="allergens" value="sesame">
 <label for="sesame">Sesame</label>
 
-<input type="checkbox" id="none" name="allergens[]" value="none">
+<input type="checkbox" id="none" name="allergens" value="none">
 <label for="none">None</label>
-<br>
+<br> -->
 
 
     <!-- Expiration Date -->

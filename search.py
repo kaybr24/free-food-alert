@@ -1,5 +1,7 @@
 #Kayley's search file with queries 
 import cs304dbi as dbi
+from datetime import datetime
+
 
 def search_for_post(conn, searched_item):
     """
@@ -8,31 +10,35 @@ def search_for_post(conn, searched_item):
     and returns the post.
     """
     curs = dbi.dict_cursor(conn)
-    query = "SELECT * FROM post WHERE 1=1"
 
-    if searched_item['location']:
-        query += " AND location IN %(locations)s"
+    query = "SELECT * FROM post WHERE"
 
-    if searched_item['allergens']:
-        query += " AND allergens NOT IN %(allergens)s"
+    if len(searched_item['location'])>0:
+        l = searched_item['location']
+        locations=tuple(x for x in l)
+        query += " building IN {}".format(locations).replace(',)', ')')
+    
+
+    if len(searched_item['allergens'])>0:
+        allergens = tuple(searched_item['allergens'])
+        if 'building' in query:
+            query += " AND allergens not in {}".format(allergens).replace(',)', ')')
+        else:
+             query += " allergens not in {}".format(allergens).replace(',)', ')')
 
     if searched_item['date_posted']:
-        query += " AND date_posted = %(date_posted)s"
+        formatted_date = datetime.strptime(searched_item['date_posted'], '%Y-%m-%d').strftime('%Y-%m-%d')
 
-    curs.execute(query, {'locations': searched_item['location'], 'allergens': searched_item['allergens'], 'date_posted': searched_item['date_posted']})
+        if 'building' in query or 'allergens' in query:
+            query += " AND post_date = '{}'".format(formatted_date)
+        else:
+            query += " post_date = '{}'".format(formatted_date)
+      
+    if query == "SELECT * FROM post WHERE":
+        query = "SELECT * from post"
+        
+    curs.execute(query)
+
     data = curs.fetchall()
     return data
-
-    
-# if __name__ == '__main__':
-#     db_to_use = 'wffa_db' 
-#     print('will connect to {}'.format(db_to_use))
-#     dbi.conf(db_to_use)
-#     conn = dbi.connect()
-#     searched_item = {'location': ['Lulu'],
-#                         'allergens': ['eggs'],
-#                         'date_posted': ""}
-#     print(search_for_post(conn, searched_item))
-
-
 

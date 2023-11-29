@@ -76,6 +76,8 @@ def search_posts():
                                 'allergens': allergens,
                                 'date_posted': date_posted}
         data = search.search_for_post(conn, search_information)
+        print('data:')
+        print(data)
         return render_template('search_results.html', title='Matching Food Posts', data=data)
     return render_template('search_form.html', title='Filter Food Posts', locations=locations, possible_allergens=possible_allergens)
 
@@ -91,6 +93,8 @@ def new_post():
         food_name = request.form['food_name']
         food_description = request.form['food_description']
         allergens = request.form.getlist('allergens')
+        print("will allergens print?")
+        print(''.join(allergens))
         expiration_date = request.form['expiration_date']
         building = request.form['building_dropdown']
         room_number = request.form['room_number']
@@ -107,7 +111,7 @@ def new_post():
         return redirect(url_for('index'))
 
     # Render the form template for GET requests
-    return render_template('new_post_form.html', title='Insert New Food Posting')
+    return render_template('new_post_form.html', title='Insert New Food Posting', possible_allergens=information.possible_allergens)
 
 
 @app.route('/registration', methods=['GET', 'POST'])
