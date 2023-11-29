@@ -14,7 +14,7 @@ def search_for_post(conn, searched_item):
         query += " AND location IN %(locations)s"
 
     if searched_item['allergens']:
-        query += " AND allergens IN %(allergens)s"
+        query += " AND allergens NOT IN %(allergens)s"
 
     if searched_item['date_posted']:
         query += " AND date_posted = %(date_posted)s"
