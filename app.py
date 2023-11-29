@@ -50,7 +50,14 @@ def rate_post():
     handle rating posts
     TO-DO: make this into Ajax embedded in homepage
     """
-    return render_template("echo.html", data = request.form)
+    if request.method == 'POST':
+        data=request.form
+        print("**********************")
+        for key in data:
+            print (key, data[key])
+        return render_template("echo.html", data=data)
+    else: # request.method == 'GET':
+        return redirect(url_for('index'))
 
 @app.route('/search/', methods = ['GET', 'POST'])
 def search_posts():

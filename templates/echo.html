@@ -6,6 +6,6 @@
 {% block main_content %}
 <h2>Rate a Post</h2>
 {% for key in data %}
-{{key, data.key}}<br/>
+{{key, data.get(key)}}<br/>
 {% endfor %}
 {% endblock %}
