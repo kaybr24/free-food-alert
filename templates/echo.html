@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
+<h2>Rate a Post</h2>
+{% for key in data %}
+{{key, data.key}}<br/>
+{% endfor %}
+{% endblock %}

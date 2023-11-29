@@ -14,11 +14,35 @@
 <pre>
 [picture goes here]<br/>
 <strong>{{post.description}}</strong>
-<em>{{now - post.post_date}} days ago</em> <!--Still struggling with the timedelta-->
+<em>{{post.age}} ago</em> <!--Still struggling with the timedelta-->
     Location: {{post.building}}, {{post.location}}
     Allergen Warning: contains {{post.allergens}}
     Posted by: {{post.user_email}}<br/>
 </pre>
+<form method="post" action ="{{url_for('rate_post')}}">
+    <input type="hidden" name="rating" value="user_email">
+    <label class="post-rating" style="font-weight: normal;">
+        1 
+        <input type="radio" name="stars" value="1" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        2 
+        <input type="radio" name="stars" value="2" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        3 
+        <input type="radio" name="stars" value="3" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        4 
+        <input type="radio" name="stars" value="4" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        5 
+        <input type="radio" name="stars" value="5" style="display:none;">
+    </label>
+    <input type="submit" value="rate this">
+</form>
 {% endfor %}
 
 {% endblock %}

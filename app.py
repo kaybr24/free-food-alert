@@ -33,8 +33,24 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 def index(): 
     conn = dbi.connect()
     all_posts = helper.display_posts(conn)
+    ## create time since posted tags
+    for post in all_posts:
+        if 'post_date' in post:
+            #print("****************", post['post_date'])
+            #date_posted = datetime.strptime(post['post_date'], '%y-%m-%d %H:%M:%S')
+            post['age'] = helper.find_post_age(post['post_date'])
+        else:
+            post['age'] = ''
     ## TO-DO: Implement function to remove expired posts from the database
     return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
+
+@app.route('/rate-post/', methods=['GET', 'POST'])
+def rate_post():
+    """
+    handle rating posts
+    TO-DO: make this into Ajax embedded in homepage
+    """
+    return render_template("echo.html", data = request.form)
 
 @app.route('/search/', methods = ['GET', 'POST'])
 def search_posts():

@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+
+{% block main_content %}
+<h2>Rate a Post</h2>
+<form method="post" action ="{{url_for('rate-one-post')}}">
+    <input type="hidden" name="rating" value="user_email">
+    <label class="post-rating" style="font-weight: normal;">
+        1 
+        <input type="radio" name="stars" value="1" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        2 
+        <input type="radio" name="stars" value="2" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        3 
+        <input type="radio" name="stars" value="3" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        4 
+        <input type="radio" name="stars" value="4" style="display:none;">
+    </label>
+    <label class="post-rating" style="font-weight: normal;">
+        5 
+        <input type="radio" name="stars" value="5" style="display:none;">
+    </label>
+    <input type="submit" value="rate this" style="display: none;">
+</form>
+{% endblock %}

@@ -6,7 +6,7 @@ drop table if exists post;
 drop table if exists user;
 
 CREATE TABLE `user` (
-  `user_email` char(8) PRIMARY KEY COMMENT 'Unique identifier for each user',
+  `user_email` varchar(30) PRIMARY KEY COMMENT 'Unique identifier for each user',
   `name` varchar(50) COMMENT 'Name of the user',
   `join_date` timestamp COMMENT 'Joined date for the user',
   `password` char(60) COMMENT 'bcrypt encoded password',
@@ -16,7 +16,7 @@ CREATE TABLE `user` (
 
 CREATE TABLE `post` (
   `post_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
-  `user_email` char(8) COMMENT 'email of guide who made the post',
+  `user_email` varchar(30) COMMENT 'email of guide who made the post',
   `description` text COMMENT 'Detail field for the free food',
   `post_date` timestamp COMMENT 'when the post was created',
   `expiration_date` timestamp COMMENT 'when the post should be deleted',
@@ -44,8 +44,8 @@ CREATE TABLE `post` (
 CREATE TABLE `rating` (
   `rate_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
   `post_id` integer COMMENT 'ID of the post being rated',
-  `guide_email` char(8) COMMENT 'email of the guide being rated',
-  `rater_email` char(8) COMMENT 'email of the user making the rating',
+  `guide_email` varchar(30) COMMENT 'email of the guide being rated',
+  `rater_email` varchar(30) COMMENT 'email of the user making the rating',
   `rating` ENUM ('1', '2', '3', '4', '5') COMMENT 'star-value of the rating'
 );
 
