@@ -8,7 +8,7 @@ def display_posts(conn):
     """
     curs = dbi.dict_cursor(conn)
     curs.execute("""
-        select `user_email`, `description`, `post_date`, 
+        select `post_id`, `user_email`, `description`, `post_date`, 
         date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
         from post;
     """)
@@ -17,17 +17,41 @@ def display_posts(conn):
 
 def find_guide_ratings(conn, specific_guide=None):
     curs = dbi.dict_cursor(conn)
+    rated_guides = {}
     if specific_guide:
-        curs.execute("""select avg(rating) from rating where guide_email like %s;""",
+        curs.execute("""select avg(rating), count(rating) from rating where guide_email like %s;""",
             [specific_guide])
         rating = curs.fetchone()
+        rated_guides = {specific_guide: [float(rating.get('avg(rating)')), float(rating.get('count(rating)'))]}
     else:
-        curs.execute("""select avg(rating), guide_email 
+        curs.execute("""select avg(rating), guide_email, count(rating)
             from rating 
             group by guide_email;
             """)
         rating = curs.fetchall()
-    return rating
+        for guideDict in rating:
+            guide = guideDict.get('guide_email')
+            stars = guideDict.get('avg(rating)')
+            count = guideDict.get('count(rating)')
+            rated_guides[guide] = [float(stars), int(count)]
+    return rated_guides
+
+def insert_rating(conn, rating):
+    """
+    given the username, food guide and star rating as a dictionary, 
+    insert the new rating into the database
+    """
+    curs = dbi.dict_cursor(conn)
+    query = """insert into rating(`post_id`, `guide_email`, `rater_email`, `rating`)
+        values (%s, %s, %s, %s);"""
+    values = [
+        rating.get('postID'), 
+        rating.get('guide'),
+        rating.get('user'),
+        rating.get('stars')
+        ]
+    curs.execute(query, values)
+    conn.commit()
 
 def find_post_age(post_date):
     """given the age of a post, return a number, string pair
@@ -64,4 +88,7 @@ if __name__ == '__main__':
     # testing find_post_age()
     time = datetime(2023, 10, 23)
     print(find_post_age(time))
+    # testing find_guide_ratings()
+    print(find_guide_ratings(conn))
+    print(find_guide_ratings(conn, 'kb102'))
     #print(display_posts(conn))

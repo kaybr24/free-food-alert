@@ -34,16 +34,22 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 def index(): 
     conn = dbi.connect()
     all_posts = helper.display_posts(conn)
+    ratings = helper.find_guide_ratings(conn)
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
-            #print("****************", post['post_date'])
             #date_posted = datetime.strptime(post['post_date'], '%y-%m-%d %H:%M:%S')
             post['age'] = helper.find_post_age(post['post_date'])
         else:
             post['age'] = ''
     ## TO-DO: Implement function to remove expired posts from the database
-    return render_template('main.html',title='Free Food Alert', search_results=all_posts, now = datetime.date(datetime.now()))
+    # customize page based on login status
+    if not session.get('logged_in', False): # if not logged in
+        session['logged_in'] = False
+    print('**********************************')
+    for key in session:
+        print(key, session.get(key))
+    return render_template('main.html',title='Free Food Alert', search_results=all_posts, ratedGuides=ratings, cookie=session)
 
 @app.route('/rate-post/', methods=['GET', 'POST'])
 def rate_post():
@@ -53,10 +59,11 @@ def rate_post():
     """
     if request.method == 'POST':
         data=request.form
-        print("**********************")
-        for key in data:
-            print (key, data[key])
-        return render_template("echo.html", data=data)
+        dbi.conf('wffa_db')
+        conn = dbi.connect()
+        helper.insert_rating(conn, data)
+        flash(f"You rated {data.get('guide')}'s post {data.get('stars')} out of 5 stars")
+        return redirect(url_for('index'))
     else: # request.method == 'GET':
         return redirect(url_for('index'))
 
@@ -79,7 +86,7 @@ def search_posts():
         print('data:')
         print(data)
         return render_template('search_results.html', title='Matching Food Posts', data=data)
-    return render_template('search_form.html', title='Filter Food Posts', locations=locations, possible_allergens=possible_allergens)
+    return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
 
 
 @app.route('/insert', methods=['GET', 'POST'])
@@ -113,8 +120,7 @@ def new_post():
         return redirect(url_for('index'))
 
     # Render the form template for GET requests
-    return render_template('new_post_form.html', title='Insert New Food Posting', possible_allergens=information.possible_allergens)
-
+    return render_template('new_post_form.html', title='Insert New Food Posting', cookie=session, possible_allergens=information.possible_allergens)
 
 @app.route('/registration', methods=['GET', 'POST'])
 def registration():
@@ -137,11 +143,11 @@ def registration():
 
         # Check if the password and confirm_password match
         if password != confirm_password:
-            return render_template('register_form.html', title='Register as a User', error='Passwords do not match')
+            return render_template('register_form.html', title='Register as a User', cookie=session, error='Passwords do not match')
 
         # Check if the terms and conditions checkbox is checked
         if not terms_checkbox:
-            return render_template('register_form.html', title='Register as a User', error='Please agree to the terms and conditions')
+            return render_template('register_form.html', title='Register as a User', cookie=session, error='Please agree to the terms and conditions')
         
         conn=dbi.connect()
         result = register.register_user(conn, full_name, wellesley_email, hashed, date)
@@ -149,11 +155,11 @@ def registration():
             # Redirect to a success page or (currently) login page
             return redirect(url_for('index'))
         else:
-            return render_template('register_form.html', title='Register as a User', error='Registration failed. Please try again.')
+            return render_template('register_form.html', title='Register as a User', cookie=session, error='Registration failed. Please try again.')
 
     else:
         # Render the registration form for GET requests
-        return render_template('register_form.html', title='Register as a User', error=None)
+        return render_template('register_form.html', title='Register as a User', cookie=session, error=None)
 
 """
 Lets users become food guides (ie, food guide column for user becomes a 1)
@@ -189,7 +195,7 @@ def user_profile():
     if not user_data:
         return "User not found."
 
-    return render_template('profile.html', title='View Profile', user=user_data)
+    return render_template('profile.html', title='View Profile', cookie=session, user=user_data)
 
 
 
@@ -227,7 +233,7 @@ def login():
     else:
         # Render the login form for GET requests
         print("***************recieved GET login request")
-        return render_template('login.html', title='Log Into Free Food Alert')
+        return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
 
 if __name__ == '__main__':
     import sys, os

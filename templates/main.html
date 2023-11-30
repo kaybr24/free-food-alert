@@ -17,10 +17,14 @@
 <em>{{post.age}} ago</em> <!--Still struggling with the timedelta-->
     Location: {{post.building}}, {{post.location}}
     Allergen Warning: contains {{post.allergens}}
-    Posted by: {{post.user_email}}<br/>
+    Posted by: {{post.user_email}}{% if ratedGuides.get(post.user_email) %}, who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
+    {% endif %}
 </pre>
+{% if cookie.get('logged_in') %}
 <form method="post" action ="{{url_for('rate_post')}}">
-    <input type="text" name="user" value="user_email">
+    <input type="hidden" name="user" value="{{cookie.get('username')}}">
+    <input type="hidden" name="guide" value="{{post.user_email}}">
+    <input type="hidden" name="postID" value="{{post.post_id}}">
     <label class="post-rating" style="font-weight: normal;">
         1 
         <input type="radio" name="stars" value="1">
@@ -43,6 +47,7 @@
     </label>
     <input type="submit" value="rate this">
 </form>
+{% endif %}
 {% endfor %}
 
 {% endblock %}
