@@ -23,16 +23,22 @@
             
 {% block nav %}
 <nav>
+  {% if cookie.get('logged_in') %}
   <ul class="nav-links">
     <li><a href="{{url_for('index')}}">Home</a></li>
     <li><a href="{{url_for('search_posts')}}">Search</a></li>
     <li><a href="{{url_for('new_post')}}">Insert</a></li>
     <li><a href="{{ url_for('registration') }}">Register</a></li>
     <li><a href="{{ url_for('user_profile') }}">Profile</a></li>
-    <!--<li><a href="{{url_for('login')}}">Login</a></li>-->
-
-    
   </ul>
+  {% else %}
+  <ul class="nav-links">
+    <li><a href="{{url_for('index')}}">Home</a></li>
+    <li><a href="{{url_for('search_posts')}}">Search</a></li>
+    <li><a href="{{ url_for('registration') }}">Register</a></li>
+    <li><a href="{{ url_for('user_profile') }}">Login</a></li>
+  </ul>
+  {% endif %}
 </nav>
 TO-DO: SEARCH BAR GOES HERE
 {% endblock %}
