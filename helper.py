@@ -43,7 +43,8 @@ def insert_rating(conn, rating):
     """
     curs = dbi.dict_cursor(conn)
     query = """insert into rating(`post_id`, `guide_email`, `rater_email`, `rating`)
-        values (%s, %s, %s, %s);"""
+        values (%s, %s, %s, %s)
+        on duplicate key update;""" # change primary key so this works
     values = [
         rating.get('postID'), 
         rating.get('guide'),

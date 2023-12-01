@@ -25,26 +25,12 @@
     <input type="hidden" name="user" value="{{cookie.get('username')}}">
     <input type="hidden" name="guide" value="{{post.user_email}}">
     <input type="hidden" name="postID" value="{{post.post_id}}">
+    {% for star in range(1,6) %}
     <label class="post-rating" style="font-weight: normal;">
-        1 
-        <input type="radio" name="stars" value="1">
+        {{star}} 
+        <input type="radio" name="stars" value="{{star}}">
     </label>
-    <label class="post-rating" style="font-weight: normal;">
-        2 
-        <input type="radio" name="stars" value="2">
-    </label>
-    <label class="post-rating" style="font-weight: normal;">
-        3 
-        <input type="radio" name="stars" value="3">
-    </label>
-    <label class="post-rating" style="font-weight: normal;">
-        4 
-        <input type="radio" name="stars" value="4">
-    </label>
-    <label class="post-rating" style="font-weight: normal;">
-        5 
-        <input type="radio" name="stars" value="5">
-    </label>
+    {% endfor %}
     <input type="submit" value="rate this">
 </form>
 {% endif %}

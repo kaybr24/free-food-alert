@@ -71,7 +71,8 @@ def rate_post():
 def search_posts():
     conn = dbi.connect()
     locations = information.locations
-
+    if not session.get('logged_in', False): # if not logged in
+        session['logged_in'] = False
     possible_allergens = information.possible_allergens
 
     if request.method == 'POST':
@@ -85,12 +86,17 @@ def search_posts():
         data = search.search_for_post(conn, search_information)
         print('data:')
         print(data)
-        return render_template('search_results.html', title='Matching Food Posts', data=data)
+        return render_template('search_results.html', title='Matching Food Posts', cookie=session, data=data)
     return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
 
 
 @app.route('/insert', methods=['GET', 'POST'])
 def new_post():
+    if not session.get('logged_in', False): # if not logged in
+        session['logged_in'] = False
+        flash("You must be logged in to access this page")
+        return redirect(url_for('user_profile'))
+
     if request.method == 'POST':
         conn = dbi.connect()
 
@@ -155,7 +161,8 @@ def registration():
             # Redirect to a success page or (currently) login page
             return redirect(url_for('index'))
         else:
-            return render_template('register_form.html', title='Register as a User', cookie=session, error='Registration failed. Please try again.')
+            flash("Registration failed. Please try again.")
+            return render_template('register_form.html', title='Register as a User', cookie=session, error='Registration failed. Please try again.') # where should this show?
 
     else:
         # Render the registration form for GET requests
