@@ -10,7 +10,8 @@ def display_posts(conn):
     curs.execute("""
         select `post_id`, `user_email`, `description`, `post_date`, 
         date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
-        from post;
+        from post
+        order by `post_date` desc;
     """)
     posts = curs.fetchall()
     return posts
@@ -61,7 +62,13 @@ def find_post_age(post_date):
     representing the age and time units of the post"""
     today = datetime.now()
     delta = today - post_date
-    if delta.days > 7:
+    dpm = 7*52.143/12 # days per month
+    if delta.days > dpm:
+        if delta.days//dpm == 1:
+            return ('1 month')
+        else:
+            return (str(int(delta.days//dpm)) +' months')
+    elif delta.days > 7:
         if delta.days//7 == 1:
             return ('1 week')
         else:
@@ -71,6 +78,12 @@ def find_post_age(post_date):
             return ("1 day")
         else:
             return (str(delta.days) + ' days')
+    elif delta.seconds > 3600:
+        if delta.seconds//3600 == 1:
+            return('1 hour')
+        else:
+            print(today, post_date, delta.seconds/3600)
+            return (str(delta.seconds//3600) + ' hours')
     elif delta.seconds > 60:
         if delta.seconds//60 == 1:
             return('1 minute')

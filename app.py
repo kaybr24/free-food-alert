@@ -61,10 +61,16 @@ def rate_post():
         data=request.form
         dbi.conf('wffa_db')
         conn = dbi.connect()
-        helper.insert_rating(conn, data)
-        flash(f"You rated {data.get('guide')}'s post {data.get('stars')} out of 5 stars")
-        return redirect(url_for('index'))
+        # check if they are rating themselves
+        if data.get('guide') == data.get('user'):
+            flash(f"You can not rate yourself")
+            return redirect(url_for('index'))
+        else:
+            helper.insert_rating(conn, data)
+            flash(f"You rated {data.get('guide')}'s post {data.get('stars')} out of 5 stars")
+            return redirect(url_for('index'))
     else: # request.method == 'GET':
+        # go back
         return redirect(url_for('index'))
 
 @app.route('/search/', methods = ['GET', 'POST'])
