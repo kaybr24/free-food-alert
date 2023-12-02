@@ -14,10 +14,10 @@ values
     (NULL, 'kb102', 'bagels and lox', '23-11-20', '24-01-01', 'ASTRO conference room', 'Observatory', 'eggs,gluten,sesame,dairy');
 
 
-insert into rating(`rate_id`, `post_id`, `guide_email`, `rater_email`, `rating`)
+insert into rating(`post_id`, `guide_email`, `rater_email`, `rating`)
 values
-    (NULL, 3, 'kb102', 'fy100', 4),
-    (NULL, 3, 'kb102', 'mm999', 5);
+    (3, 'kb102', 'fy100', 4),
+    (3, 'kb102', 'mm999', 5);
 
 insert into `picture`(`post_id`, `image_id`);
 values

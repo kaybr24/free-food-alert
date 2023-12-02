@@ -42,11 +42,11 @@ CREATE TABLE `post` (
 );
 
 CREATE TABLE `rating` (
-  `rate_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
   `post_id` integer COMMENT 'ID of the post being rated',
   `guide_email` varchar(30) COMMENT 'email of the guide being rated',
   `rater_email` varchar(30) COMMENT 'email of the user making the rating',
-  `rating` ENUM ('1', '2', '3', '4', '5') COMMENT 'star-value of the rating'
+  `rating` ENUM ('1', '2', '3', '4', '5') COMMENT 'star-value of the rating',
+  PRIMARY KEY (`post_id`, `guide_email`, `rater_email`)
 );
 
 CREATE TABLE `picture` (
@@ -57,10 +57,10 @@ CREATE TABLE `picture` (
         on delete cascade on update cascade
 );
 
-ALTER TABLE `post` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`);
+ALTER TABLE `post` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
 
-ALTER TABLE `rating` ADD FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`);
+ALTER TABLE `rating` ADD FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
 
-ALTER TABLE `rating` ADD FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`);
+ALTER TABLE `rating` ADD FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
 
-ALTER TABLE `rating` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`);
+ALTER TABLE `rating` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) on update cascade;
