@@ -161,6 +161,11 @@ def registration():
         if not terms_checkbox:
             return render_template('register_form.html', title='Register as a User', cookie=session, error='Please agree to the terms and conditions')
         
+        # Check if user exists
+        existing_user = register.check_user_exists(conn, wellesley_email)
+        if existing_user:
+            return render_template('register_form.html', title='Register as a User', cookie=session, error='User already exists. Please login.')
+        
         conn=dbi.connect()
         result = register.register_user(conn, full_name, wellesley_email, hashed, date)
         if result:
