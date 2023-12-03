@@ -1,5 +1,6 @@
 from flask import (Flask, render_template, make_response, url_for, request,
                    redirect, flash, session, send_from_directory, jsonify)
+from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
@@ -18,6 +19,9 @@ import register
 import bcrypt
 import information
 from datetime import datetime, timedelta
+
+# Initialize the scheduler for deleting the expired post
+scheduler = BackgroundScheduler()
 
 app.secret_key = 'your secret here'
 # replace that with a random key
@@ -252,6 +256,16 @@ def login():
         # Render the login form for GET requests
         print("***************recieved GET login request")
         return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
+
+# Remove expired posts every 24 hours
+@scheduler.scheduled_job('interval', hours=24)
+def remove_expired_posts_job():
+    conn = dbi.connect()
+    helper.remove_expired_posts(conn)
+    print('Expired posts have been removed.')
+
+# Start the scheduler
+scheduler.start()
 
 if __name__ == '__main__':
     import sys, os
