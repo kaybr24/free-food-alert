@@ -257,6 +257,12 @@ def login():
         print("***************recieved GET login request")
         return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
 
+@app.route('/logout')
+def logout():
+    session.clear()  # Clear all session variables
+    flash('You have been logged out.')
+    return redirect(url_for('index'))
+
 # Remove expired posts every 24 hours
 @scheduler.scheduled_job('interval', hours=24)
 def remove_expired_posts_job():
