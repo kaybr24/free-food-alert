@@ -95,7 +95,19 @@ def find_post_age(post_date):
         else:
             return (str(delta.seconds) + ' seconds')
 
-
+def remove_expired_posts(conn):
+    """
+    Remove expired posts from the database.
+    """
+    curs = dbi.dict_cursor(conn)
+    current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    query = """
+        DELETE FROM post
+        WHERE expiration_date < %s
+    """
+    curs.execute(query, [current_date])
+    conn.commit()
+    
 if __name__ == '__main__':
     db_to_use = 'wffa_db' 
     print('will connect to {}'.format(db_to_use))
