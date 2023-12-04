@@ -1,14 +1,15 @@
 /* the --color-header and others are CSS variables, which we access later. 
 */
-
 HTML {
-    --color-header: #007ea9;  /* color for H1-H6 and others. was deepskyblue but poor contrast. */
+    --color-header: #fff;  /* color for H1-H6 and others. was deepskyblue but poor contrast. */
     --color-hilite: #b50000;  /* was red, but this avoids WAVE contrast errors */ 
     --color-focus: #56B929;
     --font-family: Verdana;
     font-family: var(--font-family)
 }
-
+body{
+    background-color: #000;
+}
 .location-menu {
     min-width: 350px;
   }
@@ -35,6 +36,7 @@ HTML {
 table {
     border-collapse: collapse;
     width: 100%;
+    color: #fff;
 }
 
 th, td {
@@ -42,21 +44,69 @@ th, td {
     text-align: left;
     padding: 8px;
 }
+p{
+    color: var(--color-header);
+}
 
 h1 {
     font-size: 200%;
-    color: var(--color-header);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+    color: #139b67;
 }
 
 h2, h3 {
-    color: var(--color-header);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+   color: #139b67;
 }
-    
 
-/* for a simple navbar. Talk to Scott if you want drop-downs. */
-nav > ul {
+.allergens {
+    color: #fff;
+}
+.format {
+    color: #fff;
+}
+.post-container{
     display: flex;
-    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+}
+.post{
+    width: 30%;
+    border: 1px solid #ffffff;
+    padding: 15px;
+    box-sizing: border-box;  
+    overflow: auto;
+    color: var(--color-header);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+}
+.post-rating {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+.post-rating label {
+    cursor: pointer;
+    margin-right: 5px; 
+} 
+
+
+
+.navbar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    background-color: rgb(0, 0, 0);
+    color: #139b67;
+}
+
+nav > ul {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    list-style: none;
+    align-items: center;
 }
 
 nav ul {
@@ -77,14 +127,16 @@ nav button, nav a {
     height: 40px;
     padding: 0px;
     padding-bottom: 5px;
-    background-color: var(--color-header); /* was #3498db */
+    /* background-color: var(--color-header); was #3498db */
     border: 2px solid black;
     border-radius: 5px;
     cursor: pointer;
     /* Firefox uses font -apple-system unless I repeat the font spec here. */
-    font-family: var(--font-family);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;;
     font-weight: bold;
     font-size: 1.4rem;
+    color: rgba(255, 255, 255, 0.5);
+    
 }
 
 /* Only the top-level buttons are centered; lower ones are left-aligned. */
@@ -99,6 +151,7 @@ nav li.right {
 }
 
 nav button:hover, button:focus, nav a:hover, nav a:focus {
-    background-color: var(--color-focus);
+    /* background-color: #bda8ed; */
+    color: #fff;
 }
 

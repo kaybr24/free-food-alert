@@ -32,17 +32,19 @@
 
         </select><br>
     </div>
-
+        <div class="format">
         <label for="allergens">Allergens:</label><br>
             {% for a in possible_allergens %}
             <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
             {% endfor %}
        <br>
+    
 
         <label for="date_posted">Date Posted:</label>
         <input type="text" name="date_posted" placeholder="YYYY-MM-DD"><br>
 
         <input type="submit" value="Search">
+    </div>
     </form>
   
 </body>

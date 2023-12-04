@@ -10,7 +10,9 @@
 
 <h3>Find free food on campus: </h3>
 
+<div class="post-container">
 {% for post in search_results %}
+<div class="post">
 <pre>
 [picture goes here]<br/>
 <strong>{{post.description}}</strong>
@@ -34,6 +36,7 @@
     <input type="submit" value="rate this">
 </form>
 {% endif %}
+</div>
 {% endfor %}
-
+</div>
 {% endblock %}

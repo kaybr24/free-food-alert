@@ -22,7 +22,7 @@
 {% endwith %}
             
 {% block nav %}
-<nav>
+<nav id ='navbar' class="navbar">
   {% if cookie.get('logged_in') %}
   <ul class="nav-links">
     <li><a href="{{url_for('index')}}">Home</a></li>
