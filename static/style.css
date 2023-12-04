@@ -8,7 +8,8 @@ HTML {
     font-family: var(--font-family)
 }
 body{
-    background-image: url("background3.jpg");
+    background-image: url("BackgroundCS304.jpg");
+    background-size: cover;
     /* background-color: #000; */
 }
 .location-menu {
@@ -79,6 +80,8 @@ h2, h3 {
     box-sizing: border-box;  
     overflow: auto;
     color: #000;
+    background-color: rgba(215, 246, 250, 0.6);
+    /* opacity: 0.6; */
     font-size: 14px;
     /* word-wrap: break-word;
     overflow-wrap: break-word; */
