@@ -97,8 +97,6 @@ def search_posts():
                                 'allergens': allergens,
                                 'date_posted': date_posted}
         data = search.search_for_post(conn, search_information)
-        print('data:')
-        print(data)
         return render_template('search_results.html', title='Matching Food Posts', cookie=session, data=data)
     return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
 

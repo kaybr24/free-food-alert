@@ -21,10 +21,14 @@ def search_for_post(conn, searched_item):
 
     if len(searched_item['allergens'])>0:
         allergens = tuple(searched_item['allergens'])
+        print("**************************************************")
+        print(allergens)
         if 'building' in query:
-            query += " AND allergens not in {}".format(allergens).replace(',)', ')')
-        else:
-             query += " allergens not in {}".format(allergens).replace(',)', ')')
+            query += " AND"
+        for allergen in allergens:
+            if allergen != allergens[0]:
+                query += " AND"
+            query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
 
     if searched_item['date_posted']:
         formatted_date = datetime.strptime(searched_item['date_posted'], '%Y-%m-%d').strftime('%Y-%m-%d')
@@ -37,6 +41,7 @@ def search_for_post(conn, searched_item):
     if query == "SELECT * FROM post WHERE":
         query = "SELECT * from post"
         
+    print(query)
     curs.execute(query)
 
     data = curs.fetchall()
