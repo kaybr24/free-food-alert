@@ -79,6 +79,9 @@ def rate_post():
 
 @app.route('/search/', methods = ['GET', 'POST'])
 def search_posts():
+    '''
+    Handles searching of posts based on specified search criteria
+    '''
     conn = dbi.connect()
     locations = information.locations
     if not session.get('logged_in', False): # if not logged in
@@ -102,9 +105,20 @@ def search_posts():
 
 @app.route('/insert', methods=['GET', 'POST'])
 def new_post():
+    '''
+    Create a new post with given information
+    '''
     if not session.get('logged_in', False): # if not logged in
         session['logged_in'] = False
         flash("You must be logged in to access this page")
+        return redirect(url_for('user_profile'))
+    conn = dbi.connect()
+    user_email = session.get('username')
+    user_information = profile.get_user_info(conn, user_email)
+    food_guide_status = user_information['food_guide']
+
+    if food_guide_status != 1:
+        flash("Please become a food guide ")
         return redirect(url_for('user_profile'))
 
     if request.method == 'POST':
@@ -140,6 +154,10 @@ def new_post():
 
 @app.route('/registration', methods=['GET', 'POST'])
 def registration():
+    '''
+    Register a new user and update the database
+    '''
+    conn=dbi.connect()
     if request.method == 'POST':
         # Retrieve form data
         first_name = request.form['first_name']
@@ -195,6 +213,9 @@ Lets users become food guides (ie, food guide column for user becomes a 1)
 """
 @app.route('/become_food_guide', methods=['POST'])
 def become_food_guide():
+    '''
+    Allow a user to become a food guide and make posts.
+    '''
     # Get the user's email from the session
     user_email = session.get('username')
     print(user_email)
@@ -211,6 +232,9 @@ def become_food_guide():
 
 @app.route('/user_profile')
 def user_profile():
+    '''
+    Gets user information for a profile page
+    '''
     #get user email from session
     user_email = session.get('username')
 
@@ -230,6 +254,9 @@ def user_profile():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    '''
+    Allows users to login to the website.
+    '''
     if request.method == 'POST':
         user_email = request.form['user_email']
         password = request.form['password']
