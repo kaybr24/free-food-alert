@@ -8,7 +8,8 @@ HTML {
     font-family: var(--font-family)
 }
 body{
-    background-color: #000;
+    background-image: url("background3.jpg");
+    /* background-color: #000; */
 }
 .location-menu {
     min-width: 350px;
@@ -30,7 +31,7 @@ body{
 /* For flashed messages; make them stand out using red and italics */
 
 #messages {
-    color: var(--color-hilite);
+    color: #D80032;
     font-style: italic;
 }
 table {
@@ -45,25 +46,25 @@ th, td {
     padding: 8px;
 }
 p{
-    color: var(--color-header);
+    color:#000;
 }
 
 h1 {
     font-size: 200%;
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
-    color: #139b67;
+    color: #001B79;
 }
 
 h2, h3 {
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
-   color: #139b67;
+   color: #001B79;
 }
 
 .allergens {
-    color: #fff;
+    color: #000;
 }
 .format {
-    color: #fff;
+    color: #000;
 }
 .post-container{
     display: flex;
@@ -73,11 +74,14 @@ h2, h3 {
 }
 .post{
     width: 30%;
-    border: 1px solid #ffffff;
+    border: 1px solid #132043;
     padding: 15px;
     box-sizing: border-box;  
     overflow: auto;
-    color: var(--color-header);
+    color: #000;
+    font-size: 14px;
+    /* word-wrap: break-word;
+    overflow-wrap: break-word; */
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 .post-rating {
@@ -97,8 +101,8 @@ h2, h3 {
     align-items: center;
     justify-content: space-between;
     padding: 20px;
-    background-color: rgb(0, 0, 0);
-    color: #139b67;
+    /* background-color: rgb(0, 0, 0); */
+    color: #132043;
 }
 
 nav > ul {
@@ -128,14 +132,14 @@ nav button, nav a {
     padding: 0px;
     padding-bottom: 5px;
     /* background-color: var(--color-header); was #3498db */
-    border: 2px solid black;
+    /* border: 2px solid black; */
     border-radius: 5px;
     cursor: pointer;
     /* Firefox uses font -apple-system unless I repeat the font spec here. */
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;;
     font-weight: bold;
     font-size: 1.4rem;
-    color: rgba(255, 255, 255, 0.5);
+    color: #132043;
     
 }
 
