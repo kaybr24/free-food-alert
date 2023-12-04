@@ -159,10 +159,12 @@ def registration():
 
         # Check if the password and confirm_password match
         if password != confirm_password:
+            flash('Passwords do not match')
             return render_template('register_form.html', title='Register as a User', cookie=session, error='Passwords do not match')
 
         # Check if the terms and conditions checkbox is checked
         if not terms_checkbox:
+            flash('Please agree to the terms and conditions')
             return render_template('register_form.html', title='Register as a User', cookie=session, error='Please agree to the terms and conditions')
         
         # Check if user exists
@@ -174,6 +176,11 @@ def registration():
         result = register.register_user(conn, full_name, wellesley_email, hashed, date)
         if result:
             # Redirect to a success page or (currently) login page
+            flash(f"Registered user {wellesley_email}")
+            session['username'] = wellesley_email
+            session['uid'] = wellesley_email
+            session['logged_in'] = True
+            session['visits'] = 1
             return redirect(url_for('index'))
         else:
             flash("Registration failed. Please try again.")
