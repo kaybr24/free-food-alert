@@ -95,7 +95,17 @@ h2, h3 {
 } 
 
 
-
+.location-menu select {
+    width: auto;
+    display: inline-block;
+    font-size: 1.15rem;
+    padding: 0.675em 1em;  
+    background-color: #ffffff;
+    border: 1px solid #caced1;
+    border-radius: 0.25rem;
+    color: #000;
+    cursor: pointer;
+}
 .navbar{
     display: flex;
     align-items: center;
