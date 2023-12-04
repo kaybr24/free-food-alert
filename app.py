@@ -174,7 +174,6 @@ def registration():
         hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
         stored = hashed.decode('utf-8')
 
-
         # Check if the password and confirm_password match
         if password != confirm_password:
             flash('Passwords do not match')
@@ -190,7 +189,6 @@ def registration():
         if existing_user:
             return render_template('register_form.html', title='Register as a User', cookie=session, error='User already exists. Please login.')
         
-        conn=dbi.connect()
         result = register.register_user(conn, full_name, wellesley_email, hashed, date)
         if result:
             # Redirect to a success page or (currently) login page
