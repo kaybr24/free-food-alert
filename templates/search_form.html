@@ -24,8 +24,8 @@
     <h1>Search for Food</h1>
     <form method="post" action="{{ url_for('search_posts') }}">
         <div class="location-menu">
-        <label for="location">Location:</label>
-        <select multiple name="location" >
+        <label for="building_dropdown">Building:</label>
+        <select id = building name="building" >
             {% for l in locations %}
             <option value="{{ l }}">{{ l }}</option>
             {% endfor %}
@@ -38,7 +38,7 @@
             <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
             {% endfor %}
        <br>
-    
+
 
         <label for="date_posted">Date Posted:</label>
         <input type="text" name="date_posted" placeholder="YYYY-MM-DD"><br>
