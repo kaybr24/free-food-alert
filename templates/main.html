@@ -16,7 +16,7 @@
 <strong>{{post.description}}</strong>
 <em>{{post.age}} ago</em> <!--Still struggling with the timedelta-->
     Location: {{post.building}}, {{post.location}}
-    Allergen Warning: contains {{post.allergens}}
+    {% if post.allergens != None %}Allergen Warning: contains {{post.allergens}}{% endif %}
     Posted by: {{post.user_email}}{% if ratedGuides.get(post.user_email) %}, who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
     {% endif %}
 </pre>
