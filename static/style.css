@@ -8,9 +8,9 @@ HTML {
     font-family: var(--font-family)
 }
 body{
-    background-image: url("background5.jpg");
-    background-size: cover;
-    /* background-color: #000; */
+    /* background-image: url("background5.jpg");
+    background-size: cover; */
+    background-color: #cad7eb
 }
 .location-menu {
     min-width: 350px;
@@ -44,7 +44,7 @@ table {
 }
 
 th, td {
-    border: 1px solid #000000;
+    border: 1px solid #ffffff;
     text-align: left;
     padding: 8px;
 }
@@ -65,6 +65,26 @@ h2, h3 {
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
    color: #001B79;
    font-size:180%;
+}
+
+.comments {
+    max-height: 100px; 
+    overflow-y: auto; 
+    border: 1px solid #ccc; 
+    padding: 10px; 
+    font-size: 12px;
+}
+
+/* Add this style block to hide the scrollbar until the user interacts */
+.comments::-webkit-scrollbar {
+    width: 12px; /* Width of the scrollbar */
+}
+
+.comments::-webkit-scrollbar-thumb {
+    background-color: #888; /* Color of the scrollbar thumb */
+}
+.textbox {
+    width: 200px;
 }
 
 .allergens {
@@ -114,13 +134,15 @@ h2, h3 {
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
 }
 .post{
-    width: 30%;
+    width: 32.5%;
     border: 1px solid #132043;
     padding: 15px;
     box-sizing: border-box;  
     overflow: auto;
+    overflow-x: auto;
     color: #000;
-    background-color: rgba(215, 246, 250, 0.8);
+    font-size: 110%;
+    background-color: rgba(215, 246, 250, 0.6);
     /* opacity: 0.6; */
     font-size: 14px;
     /* word-wrap: break-word;

@@ -113,6 +113,34 @@ def remove_expired_posts(conn):
     curs.execute(query, [current_date])
     conn.commit()
     
+def insert_comment(conn, post_id, user_email, comment):
+    '''
+    Inserts comment to a post into table
+    '''
+    curs = dbi.dict_cursor(conn)
+    now = datetime.now()
+    commentDate = now.strftime('%Y-%m-%d %H:%M:%S')
+    
+    curs.execute('''insert into comments(post_id, user_email, comment, date)
+                    values(%s, %s, %s, %s)''',
+                    [post_id, user_email, comment, commentDate])
+
+    # query = "INSERT INTO comments (post_id, user_email, comment, date) VALUES ((%s, %s, %s, %s)"
+    # values=[post_id, user_email, comment, commentDate]
+    # curs.execute(query, values)
+    conn.commit()
+
+def get_comments_for_post(conn, post_id):
+    '''
+    gets the comments for a post
+    '''
+    curs = dbi.dict_cursor(conn)
+    query = "SELECT * FROM comments WHERE post_id=%s ORDER BY date DESC"
+    curs.execute(query, [post_id])
+    return curs.fetchall()
+
+
+
 if __name__ == '__main__':
     db_to_use = 'wffa_db' 
     print('will connect to {}'.format(db_to_use))
