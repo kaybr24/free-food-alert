@@ -14,6 +14,7 @@ body{
 }
 .location-menu {
     min-width: 350px;
+    font-size: 1.15rem;
   }
   
   select {
@@ -38,16 +39,20 @@ body{
 table {
     border-collapse: collapse;
     width: 100%;
-    color: #fff;
+    color: #000000;
+    background-color: rgba(215, 246, 250, 0.8);
 }
 
 th, td {
-    border: 1px solid #dddddd;
+    border: 1px solid #000000;
     text-align: left;
     padding: 8px;
 }
 p{
     color:#000;
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+    font-size:120%;
+
 }
 
 h1 {
@@ -59,6 +64,7 @@ h1 {
 h2, h3 {
     font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
    color: #001B79;
+   font-size:180%;
 }
 
 .allergens {
@@ -66,7 +72,27 @@ h2, h3 {
 }
 .format {
     color: #000;
+    font-size: 1.15rem;
 }
+.button-format {
+    text-align: left; /* Center the button */
+}
+
+.button-format input[type="submit"] {
+    background-color: #4CAF50; /* Set background color */
+    color: white; /* Set text color */
+    padding: 10px 20px; /* Add padding to the button */
+    font-size: 16px; /* Set font size */
+    border: none; /* Remove border */
+    border-radius: 5px; /* Add border-radius for rounded corners */
+    cursor: pointer; /* Add a pointer cursor on hover */
+    transition: background-color 0.3s; /* Add a smooth transition effect */
+}
+
+.button-format input[type="submit"]:hover {
+    background-color: #45a049; /* Change background color on hover */
+}
+
 .post-container{
     display: flex;
     flex-wrap: wrap;
@@ -80,7 +106,7 @@ h2, h3 {
     box-sizing: border-box;  
     overflow: auto;
     color: #000;
-    background-color: rgba(215, 246, 250, 0.6);
+    background-color: rgba(215, 246, 250, 0.8);
     /* opacity: 0.6; */
     font-size: 14px;
     /* word-wrap: break-word;

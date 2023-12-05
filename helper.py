@@ -34,7 +34,10 @@ def find_guide_ratings(conn, specific_guide=None):
             guide = guideDict.get('guide_email')
             stars = guideDict.get('avg(rating)')
             count = guideDict.get('count(rating)')
-            rated_guides[guide] = [float(stars), int(count)]
+            if stars:
+                rated_guides[guide] = [float(stars), int(count)]
+            else:  
+                rated_guides[guide] = [0, 0]
     return rated_guides
 
 def insert_rating(conn, rating):
