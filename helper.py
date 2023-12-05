@@ -108,6 +108,8 @@ def remove_expired_posts(conn):
         DELETE FROM post
         WHERE expiration_date < %s
     """
+    # Assuming conn and cursor are already created
+    curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
     curs.execute(query, [current_date])
     conn.commit()
     

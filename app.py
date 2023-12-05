@@ -37,7 +37,7 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 @app.route('/')
 def index(): 
     conn = dbi.connect()
-    # helper.remove_expired_posts(conn)
+    helper.remove_expired_posts(conn)
     all_posts = helper.display_posts(conn)
     ratings = helper.find_guide_ratings(conn)
     ## create time since posted tags

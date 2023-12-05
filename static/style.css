@@ -75,24 +75,38 @@ h2, h3 {
     font-size: 1.15rem;
 }
 .button-format {
-    text-align: left; /* Center the button */
+    text-align: left; 
 }
 
 .button-format input[type="submit"] {
-    background-color: #1134b5; /* Set background color */
-    color: white; /* Set text color */
-    padding: 10px 20px; /* Add padding to the button */
-    font-size: 16px; /* Set font size */
-    border: none; /* Remove border */
-    border-radius: 5px; /* Add border-radius for rounded corners */
-    cursor: pointer; /* Add a pointer cursor on hover */
-    transition: background-color 0.3s; /* Add a smooth transition effect */
+    background-color: #1134b5; 
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px; 
+  
+    border-radius: 5px; 
+    cursor: pointer;
+    transition: background-color 0.3s;
 }
 
 .button-format input[type="submit"]:hover {
-    background-color: #001B79; /* Change background color on hover */
+    background-color: #001B79; 
 }
 
+.button-format button {
+    background-color: #1134b5;
+    color: white; 
+    padding: 10px 20px; 
+    font-size: 16px; 
+    border: none; 
+    border-radius: 5px; 
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.button-format button[type="submit"]:hover {
+    background-color: #001B79; 
+}
 .post-container{
     display: flex;
     flex-wrap: wrap;
