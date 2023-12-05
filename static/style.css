@@ -8,7 +8,7 @@ HTML {
     font-family: var(--font-family)
 }
 body{
-    background-image: url("BackgroundCS304.jpg");
+    background-image: url("background5.jpg");
     background-size: cover;
     /* background-color: #000; */
 }
@@ -79,7 +79,7 @@ h2, h3 {
 }
 
 .button-format input[type="submit"] {
-    background-color: #4CAF50; /* Set background color */
+    background-color: #1134b5; /* Set background color */
     color: white; /* Set text color */
     padding: 10px 20px; /* Add padding to the button */
     font-size: 16px; /* Set font size */
@@ -90,7 +90,7 @@ h2, h3 {
 }
 
 .button-format input[type="submit"]:hover {
-    background-color: #45a049; /* Change background color on hover */
+    background-color: #001B79; /* Change background color on hover */
 }
 
 .post-container{
