@@ -148,7 +148,7 @@ def new_post():
         food_image = request.files['food_image'] if 'food_image' in request.files else None
 
         # Insert into the database
-        post_date = datetime.date(datetime.now())
+        post_date = datetime.now()
         insert.insert_post(conn, post_date, request.form)
         # insert.insert_post(conn, user_email, food_description, post_date, expiration_date, room_number, building, allergens)
         # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
