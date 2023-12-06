@@ -16,6 +16,7 @@ def search_for_post(conn, searched_item):
     if len(searched_item['location'])>0:
         l = searched_item['location']
         locations=tuple(x for x in l)
+        #data check against list of locations - TODO
         query += " building IN {}".format(locations).replace(',)', ')')
     
 
@@ -28,6 +29,7 @@ def search_for_post(conn, searched_item):
         for allergen in allergens:
             if allergen != allergens[0]:
                 query += " AND"
+            #see if in subset of allergens? - TODO
             query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
 
     if searched_item['date_posted']:
