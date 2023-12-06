@@ -5,10 +5,16 @@
 
 {% block main_content %}
   <h1>Register with Food Alert</h1>
+  <p><strong>Why register?</strong></p>
+    <p>Creating an account with Free Food Alert lets you rate posts and food guides. You can also 
+      insert and create posts yourself to let your peers know about free food you encounter!
+    </p>
 
   <form action="{{ url_for('registration') }}" method="post">
+    <div class="format">
     <!-- Personal Information -->
     <h2>Personal Information:</h2>
+    
     <label for="first_name">First Name:</label>
     <input type="text" id="first_name" name="first_name" required>
     <br>
@@ -44,8 +50,11 @@
     <label for="date">Date:</label>
     <input type="date" id="date" name="date" required>
     <br>
-
+    <br>
     <!-- Submit Button -->
+    <div class="button-format">
     <input type="submit" value="Submit">
+  </div>
+  </div>
   </form>
 {% endblock %}

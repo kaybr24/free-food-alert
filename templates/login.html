@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 
 {% block main_content %}
+
   <h2>Login</h2>
+  <div class="format">
   <form action="{{ url_for('login') }}" method="post">
     <label for="user_email">Email:</label>
     <input type="text" id="user_email" name="user_email" required>
@@ -9,6 +11,10 @@
     <label for="password">Password:</label>
     <input type="password" id="password" name="password" required>
     <br>
+    <br>
+    <div class="button-format">
     <input type="submit" value="Login">
+  </div>
   </form>
+</div>
 {% endblock %}

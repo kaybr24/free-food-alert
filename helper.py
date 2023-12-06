@@ -34,7 +34,10 @@ def find_guide_ratings(conn, specific_guide=None):
             guide = guideDict.get('guide_email')
             stars = guideDict.get('avg(rating)')
             count = guideDict.get('count(rating)')
-            rated_guides[guide] = [float(stars), int(count)]
+            if stars:
+                rated_guides[guide] = [float(stars), int(count)]
+            else:  
+                rated_guides[guide] = [0, 0]
     return rated_guides
 
 def insert_rating(conn, rating):
@@ -105,9 +108,38 @@ def remove_expired_posts(conn):
         DELETE FROM post
         WHERE expiration_date < %s
     """
+    curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
     curs.execute(query, [current_date])
     conn.commit()
     
+def insert_comment(conn, post_id, user_email, comment):
+    '''
+    Inserts comment to a post into table
+    '''
+    curs = dbi.dict_cursor(conn)
+    now = datetime.now()
+    commentDate = now.strftime('%Y-%m-%d %H:%M:%S')
+    
+    curs.execute('''insert into comments(post_id, user_email, comment, date)
+                    values(%s, %s, %s, %s)''',
+                    [post_id, user_email, comment, commentDate])
+
+    # query = "INSERT INTO comments (post_id, user_email, comment, date) VALUES ((%s, %s, %s, %s)"
+    # values=[post_id, user_email, comment, commentDate]
+    # curs.execute(query, values)
+    conn.commit()
+
+def get_comments_for_post(conn, post_id):
+    '''
+    gets the comments for a post
+    '''
+    curs = dbi.dict_cursor(conn)
+    query = "SELECT * FROM comments WHERE post_id=%s ORDER BY date DESC"
+    curs.execute(query, [post_id])
+    return curs.fetchall()
+
+
+
 if __name__ == '__main__':
     db_to_use = 'wffa_db' 
     print('will connect to {}'.format(db_to_use))

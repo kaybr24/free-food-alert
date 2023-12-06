@@ -1,16 +1,20 @@
 /* the --color-header and others are CSS variables, which we access later. 
 */
-
 HTML {
-    --color-header: #007ea9;  /* color for H1-H6 and others. was deepskyblue but poor contrast. */
+    --color-header: #fff;  /* color for H1-H6 and others. was deepskyblue but poor contrast. */
     --color-hilite: #b50000;  /* was red, but this avoids WAVE contrast errors */ 
     --color-focus: #56B929;
     --font-family: Verdana;
     font-family: var(--font-family)
 }
-
+body{
+    /* background-image: url("background5.jpg");
+    background-size: cover; */
+    background-color: #cad7eb
+}
 .location-menu {
     min-width: 350px;
+    font-size: 1.15rem;
   }
   
   select {
@@ -29,34 +33,159 @@ HTML {
 /* For flashed messages; make them stand out using red and italics */
 
 #messages {
-    color: var(--color-hilite);
+    color: #D80032;
     font-style: italic;
 }
 table {
     border-collapse: collapse;
     width: 100%;
+    color: #000000;
+    background-color: rgba(215, 246, 250, 0.8);
 }
 
 th, td {
-    border: 1px solid #dddddd;
+    border: 1px solid #ffffff;
     text-align: left;
     padding: 8px;
+}
+p{
+    color:#000;
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+    font-size:120%;
+
 }
 
 h1 {
     font-size: 200%;
-    color: var(--color-header);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+    color: #001B79;
 }
 
 h2, h3 {
-    color: var(--color-header);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+   color: #001B79;
+   font-size:180%;
 }
-    
 
-/* for a simple navbar. Talk to Scott if you want drop-downs. */
-nav > ul {
+.comments {
+    max-height: 100px; 
+    overflow-y: auto; 
+    border: 1px solid #ccc; 
+    padding: 10px; 
+    font-size: 12px;
+}
+
+/* Add this style block to hide the scrollbar until the user interacts */
+.comments::-webkit-scrollbar {
+    width: 12px; /* Width of the scrollbar */
+}
+
+.comments::-webkit-scrollbar-thumb {
+    background-color: #888; /* Color of the scrollbar thumb */
+}
+.textbox {
+    width: 200px;
+}
+
+.allergens {
+    color: #000;
+}
+.format {
+    color: #000;
+    font-size: 1.15rem;
+}
+.button-format {
+    text-align: left; 
+}
+
+.button-format input[type="submit"] {
+    background-color: #1134b5; 
+    color: white;
+    padding: 10px 20px;
+    font-size: 16px; 
+  
+    border-radius: 5px; 
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.button-format input[type="submit"]:hover {
+    background-color: #001B79; 
+}
+
+.button-format button {
+    background-color: #1134b5;
+    color: white; 
+    padding: 10px 20px; 
+    font-size: 16px; 
+    border: none; 
+    border-radius: 5px; 
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.button-format button[type="submit"]:hover {
+    background-color: #001B79; 
+}
+.post-container{
     display: flex;
-    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+}
+.post{
+    width: 32.5%;
+    border: 1px solid #132043;
+    padding: 15px;
+    box-sizing: border-box;  
+    overflow: auto;
+    overflow-x: auto;
+    color: #000;
+    font-size: 110%;
+    background-color: rgba(215, 246, 250, 0.6);
+    /* opacity: 0.6; */
+    font-size: 14px;
+    /* word-wrap: break-word;
+    overflow-wrap: break-word; */
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;
+}
+.post-rating {
+    display: flex;
+    align-items: center;
+    margin-top: 10px;
+}
+.post-rating label {
+    cursor: pointer;
+    margin-right: 5px; 
+} 
+
+
+.location-menu select {
+    width: auto;
+    display: inline-block;
+    font-size: 1.15rem;
+    padding: 0.675em 1em;  
+    background-color: #ffffff;
+    border: 1px solid #caced1;
+    border-radius: 0.25rem;
+    color: #000;
+    cursor: pointer;
+}
+.navbar{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px;
+    /* background-color: rgb(0, 0, 0); */
+    color: #132043;
+}
+
+nav > ul {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    list-style: none;
+    align-items: center;
 }
 
 nav ul {
@@ -77,14 +206,16 @@ nav button, nav a {
     height: 40px;
     padding: 0px;
     padding-bottom: 5px;
-    background-color: var(--color-header); /* was #3498db */
-    border: 2px solid black;
+    /* background-color: var(--color-header); was #3498db */
+    /* border: 2px solid black; */
     border-radius: 5px;
     cursor: pointer;
     /* Firefox uses font -apple-system unless I repeat the font spec here. */
-    font-family: var(--font-family);
+    font-family: Cambria, Cochin, Georgia, Times, 'Times New Roman', serif;;
     font-weight: bold;
     font-size: 1.4rem;
+    color: #132043;
+    
 }
 
 /* Only the top-level buttons are centered; lower ones are left-aligned. */
@@ -99,6 +230,7 @@ nav li.right {
 }
 
 nav button:hover, button:focus, nav a:hover, nav a:focus {
-    background-color: var(--color-focus);
+    /* background-color: #bda8ed; */
+    color: #fff;
 }
 

@@ -10,16 +10,26 @@
 
 <h3>Find free food on campus: </h3>
 
+<div class="post-container">
 {% for post in search_results %}
-<pre>
+<div class="post">
+<!-- <pre> -->
 [picture goes here]<br/>
 <strong>{{post.description}}</strong>
-<em>{{post.age}} ago</em> <!--Still struggling with the timedelta-->
+<br>
+<em>{{post.age}} ago</em>
+<br>
     Location: {{post.building}}, {{post.location}}
-    {% if post.allergens != None %}Allergen Warning: contains {{post.allergens}}{% endif %}
-    Posted by: {{post.user_email}}{% if ratedGuides.get(post.user_email) %}, who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
+    {% if (post.allergens != None) %}
+        <br>
+        Allergen Warning: contains {{post.allergens}}
+        <br>
     {% endif %}
-</pre>
+    Posted by: {{post.user_email}}
+    {% if ratedGuides.get(post.user_email) %}
+        , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
+    {% endif %}
+<!-- </pre> -->
 {% if cookie.get('logged_in') %}
 <form method="post" action ="{{url_for('rate_post')}}">
     <input type="hidden" name="user" value="{{cookie.get('username')}}">
@@ -33,7 +43,27 @@
     {% endfor %}
     <input type="submit" value="rate this">
 </form>
-{% endif %}
-{% endfor %}
+<br><br>
+<div class="comments">
+    <h3>Comments:</h3>
+    {% if comments.get(post.post_id) %}
+        {% for comment in comments[post.post_id] %}
+            <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
+        {% endfor %}
+    {% endif %}
+</div>
+    <br>
+    <!-- Form to add a new comment -->
+    <form method="post" action="{{url_for('add_comment')}}">
+        <input type="hidden" name="post_id" value="{{ post.post_id }}">
+        <div class="textbox">
+        <textarea name="comment_text" placeholder="Add a comment" required></textarea>
+    </div>
+        <button type="submit">Add Comment</button>
+    </form>
 
+{% endif %}
+</div>
+{% endfor %}
+</div>
 {% endblock %}

@@ -37,8 +37,18 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 @app.route('/')
 def index(): 
     conn = dbi.connect()
+    helper.remove_expired_posts(conn)
     all_posts = helper.display_posts(conn)
     ratings = helper.find_guide_ratings(conn)
+
+    comments = {}
+    for post in all_posts:
+        post_id = post.get('post_id')
+        if post_id:
+            post_comments = helper.get_comments_for_post(conn, post_id)
+            comments[post_id] = post_comments
+    print("!!!!!!!!!!!!!!!!!!!!!")
+    print(comments)
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
@@ -53,7 +63,7 @@ def index():
     print('**********************************')
     for key in session:
         print(key, session.get(key))
-    return render_template('main.html',title='Free Food Alert', search_results=all_posts, ratedGuides=ratings, cookie=session)
+    return render_template('main.html',title='Free Food Alert', comments = comments, search_results=all_posts, ratedGuides=ratings, cookie=session)
 
 @app.route('/rate-post/', methods=['GET', 'POST'])
 def rate_post():
@@ -286,6 +296,36 @@ def login():
         # Render the login form for GET requests
         print("***************recieved GET login request")
         return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
+
+@app.route('/add_comment', methods=['POST'])
+def add_comment():
+    if request.method == 'POST':
+        data = request.form
+        print('data')
+        print(data)
+        post_id = data.get('post_id')
+        user_email = session.get('username')
+        comment_text = data.get('comment_text')
+
+        if not post_id:
+            flash("not postid")
+            return redirect(url_for('index'))
+        if not user_email:
+            flash('not user email')
+            return redirect(url_for('index'))
+        if not comment_text:
+            flash('not comment text')
+            return redirect(url_for('index'))
+        # if not post_id or not user_email or not comment_text:
+        #     flash('Invalid comment data.')
+        #     return redirect(url_for('index'))
+
+        # Insert the comment into the database
+        conn = dbi.connect()
+        helper.insert_comment(conn, post_id, user_email, comment_text)
+        
+        flash('Comment added successfully.')
+        return redirect(url_for('index'))
 
 @app.route('/logout')
 def logout():
