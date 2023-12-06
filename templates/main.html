@@ -19,16 +19,16 @@
 <br>
 <em>{{post.age}} ago</em>
 <br>
-    Location: {{post.building}}, {{post.location}}
-    {% if (post.allergens != None) %}
-        <br>
-        Allergen Warning: contains {{post.allergens}}
-        <br>
-    {% endif %}
-    Posted by: {{post.user_email}}
-    {% if ratedGuides.get(post.user_email) %}
-        , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
-    {% endif %}
+Location: {{post.building}}, {{post.location}}
+<br>
+{% if (post.allergens) %}
+    Allergen Warning: contains {{post.allergens}}
+    <br>
+{% endif %}
+Posted by: {{post.user_email}}
+{% if ratedGuides.get(post.user_email)[1] > 0 %}
+    , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
+{% endif %}
 <!-- </pre> -->
 {% if cookie.get('logged_in') %}
 <form method="post" action ="{{url_for('rate_post')}}">
