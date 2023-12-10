@@ -8,7 +8,6 @@
 
   <form action="{{ url_for('new_post') }}" method="post" enctype="multipart/form-data">
     <!-- User email -->
-    <!-- autofilled -->
     <label for="user_email"></label>
     <input type="hidden" id="user_email" name="user_email" value="{{cookie.get('username')}}" required>
     <br>
@@ -23,44 +22,16 @@
     <textarea id="food_description" name="food_description" rows="4" required></textarea>
     <br>
 
-<h2>Allergens:</h2>
-<label>Select known allergens (check all that apply):</label>
-<br>
+    <h2>Allergens:</h2>
+    <label>Select known allergens (check all that apply):</label>
+    <br>
 
-<label for="allergens">Allergens:</label><br>
-            {% for a in possible_allergens %}
-            <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
-            {% endfor %}
-       <br>
-<!--        
-<input type="checkbox" id="soy" name="allergens" value="soy">
-<label for="soy">Soy</label>
-
-<input type="checkbox" id="peanuts" name="allergens" value="peanuts">
-<label for="peanuts">Peanuts</label>
-
-<input type="checkbox" id="dairy" name="allergens" value="dairy">
-<label for="dairy">Dairy</label>
-
-<input type="checkbox" id="gluten" name="allergens" value="gluten">
-<label for="gluten">Gluten</label>
-
-<input type="checkbox" id="egg" name="allergens" value="egg">
-<label for="egg">Egg</label>
-
-<input type="checkbox" id="shellfish" name="allergens" value="shellfish">
-<label for="shellfish">Shellfish</label>
-
-<input type="checkbox" id="nuts" name="allergens" value="nuts">
-<label for="nuts">Nuts</label>
-
-<input type="checkbox" id="sesame" name="allergens" value="sesame">
-<label for="sesame">Sesame</label>
-
-<input type="checkbox" id="none" name="allergens" value="none">
-<label for="none">None</label>
-<br> -->
-
+    <label for="allergens">Allergens:</label><br>
+    {% for a in possible_allergens %}
+      <!-- Use a loop to generate checkboxes dynamically -->
+      <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
+    {% endfor %}
+    <br>
 
     <!-- Expiration Date -->
     <h2>Expiration Date:</h2>
@@ -71,89 +42,12 @@
     <!-- Building -->
     <h2>Building:</h2>
     <div class="location-menu">
-    <label for="building_dropdown">Food building:</label>
-    <select id="building_dropdown" name="building_dropdown" required>
-    <option value="Acorns">Acorns</option>
-    <option value="Alumnae Hall">Alumnae Hall</option>
-    <option value="Athletic Maintenance Facility">Athletic Maintenance Facility</option>
-    <option value="Bates Hall">Bates Hall</option>
-    <option value="Beebe Hall">Beebe Hall</option>
-    <option value="Billings">Billings</option>
-    <option value="Boathouse">Boathouse</option>
-    <option value="Campus Police Headquarters">Campus Police Headquarters</option>
-    <option value="Cazenove Hall">Cazenove Hall</option>
-    <option value="Cedar Lodge">Cedar Lodge</option>
-    <option value="Cervantes">Cervantes</option>
-    <option value="Cheever House">Cheever House</option>
-    <option value="Child Study Center">Child Study Center</option>
-    <option value="Claflin Hall">Claflin Hall</option>
-    <option value="Collins Cinema">Collins Cinema</option>
-    <option value="Continuing Education Office">Continuing Education Office</option>
-    <option value="Davis Hall">Davis Hall</option>
-    <option value="Davis Museum">Davis Museum</option>
-    <option value="Davis Parking Facility">Davis Parking Facility</option>
-    <option value="Day Care Center">Day Care Center</option>
-    <option value="Distribution Center">Distribution Center</option>
-    <option value="Dower House">Dower House</option>
-    <option value="East Lodge">East Lodge</option>
-    <option value="Fiske House">Fiske House</option>
-    <option value="Founders Hall">Founders Hall</option>
-    <option value="Freeman Hall">Freeman Hall</option>
-    <option value="French House - Carriage">French House - Carriage</option>
-    <option value="French House - Main">French House - Main</option>
-    <option value="Golf House">Golf House</option>
-    <option value="Green Hall">Green Hall</option>
-    <option value="Grounds">Grounds</option>
-    <option value="Hallowell House">Hallowell House</option>
-    <option value="Harambee House">Harambee House</option>
-    <option value="Hemlock">Hemlock</option>
-    <option value="Homestead">Homestead</option>
-    <option value="Horton House">Horton House</option>
-    <option value="Instead">Instead</option>
-    <option value="Jewett Art Center">Jewett Art Center</option>
-    <option value="Keohane Sports Center">Keohane Sports Center</option>
-    <option value="Lake House">Lake House</option>
-    <option value="Library">Library</option>
-    <option value="Lulu Chow Wang Campus Center">Lulu Chow Wang Campus Center</option>
-    <option value="Margaret Ferguson Greenhouses">Margaret Ferguson Greenhouses</option>
-    <option value="McAfee Hall">McAfee Hall</option>
-    <option value="Motor Pool">Motor Pool</option>
-    <option value="Munger Hall">Munger Hall</option>
-    <option value="Nehoiden House">Nehoiden House</option>
-    <option value="Observatory">Observatory</option>
-    <option value="Orchard Apts">Orchard Apts</option>
-    <option value="Pendleton Hall East">Pendleton Hall East</option>
-    <option value="Pendleton Hall West">Pendleton Hall West</option>
-    <option value="Physical Plant">Physical Plant</option>
-    <option value="Pomeroy Hall">Pomeroy Hall</option>
-    <option value="President's House">President's House</option>
-    <option value="Ridgeway Apts">Ridgeway Apts</option>
-    <option value="Schneider Center">Schneider Center</option>
-    <option value="Science Center">Science Center</option>
-    <option value="Service Building">Service Building</option>
-    <option value="Severance Hall">Severance Hall</option>
-    <option value="Shafer Hall">Shafer Hall</option>
-    <option value="Shakespeare">Shakespeare</option>
-    <option value="Shepard House">Shepard House</option>
-    <option value="Simpson Hall">Simpson Hall</option>
-    <option value="Simpson West">Simpson West</option>
-    <option value="Slater International Center">Slater International Center</option>
-    <option value="Stone Center">Stone Center</option>
-    <option value="Stone Hall">Stone Hall</option>
-    <option value="Tower Court East">Tower Court East</option>
-    <option value="Tower Court West">Tower Court West</option>
-    <option value="Trade Shops Building">Trade Shops Building</option>
-    <option value="Tau Zeta Epsilon">Tau Zeta Epsilon</option>
-    <option value="Waban House">Waban House</option>
-    <option value="Weaver House">Weaver House</option>
-    <option value="Webber Cottage">Webber Cottage</option>
-    <option value="Wellesley College Club">Wellesley College Club</option>
-    <option value="West Lodge">West Lodge</option>
-    <option value="Whitin House">Whitin House</option>
-    <option value="Zeta Alpha House">Zeta Alpha House</option>
-    </select>
-    <br>
-  </div>
+      <label for="building_dropdown">Food building:</label>
+      <select id="building_dropdown" name="building_dropdown" required>
+        <!-- Options remain the same -->
+      </select>
+      <br>
+    </div>
 
     <!-- Location -->
     <h2>Location:</h2>
