@@ -26,6 +26,7 @@
         <div class="location-menu">
         <label for="building_dropdown">Building:</label>
         <select id = building name="building" >
+            <option value="" disabled selected hidden>select building(s)</option>
             {% for l in locations %}
             <option value="{{ l }}">{{ l }}</option>
             {% endfor %}
