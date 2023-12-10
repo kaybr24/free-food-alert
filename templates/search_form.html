@@ -33,15 +33,15 @@
         </select><br>
     </div>
         <div class="format">
-        <label for="allergens">Allergens:</label><br>
+        <label id="allergens" for="allergens">Allergens:</label><br>
             {% for a in possible_allergens %}
-            <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
+            <input type="checkbox" name="allergens" value="{{ a }}" id = "{{ a }}">
+            <label for="{{ a }}">{{ a }}</label><br>
             {% endfor %}
        <br>
-
-
+       
         <label for="date_posted">Date Posted:</label>
-        <input type="text" name="date_posted" placeholder="YYYY-MM-DD"><br>
+        <input type="text" id="date_posted" name="date_posted" placeholder="YYYY-MM-DD">
     </div>
     
     <div class="button-format">

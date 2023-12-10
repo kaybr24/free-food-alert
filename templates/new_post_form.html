@@ -9,8 +9,12 @@
   <form action="{{ url_for('new_post') }}" method="post" enctype="multipart/form-data">
     <!-- User email -->
     <!-- autofilled -->
-    <label for="user_email"></label>
-    <input type="hidden" id="user_email" name="user_email" value="{{cookie.get('username')}}" required>
+    
+    <label for="user_email" aria-label="User Email"></label>
+<input type="hidden" id="user_email" name="user_email" value="{{cookie.get('username')}}" required>
+<!-- 
+    <label for="user_email">User Email</label>
+    <input type="hidden" id="user_email" name="user_email" value="{{cookie.get('username')}}" required> -->
     <br>
 
     <!-- Food Item and Description -->
@@ -27,40 +31,13 @@
 <label>Select known allergens (check all that apply):</label>
 <br>
 
-<label for="allergens">Allergens:</label><br>
-            {% for a in possible_allergens %}
-            <input type="checkbox" name="allergens" value="{{ a }}"> {{ a }}<br>
-            {% endfor %}
+<label id="allergens" for="allergens">Allergens:</label><br>
+{% for a in possible_allergens %}
+<input type="checkbox" name="allergens" value="{{ a }}" id = "{{ a }}">
+<label for="{{ a }}">{{ a }}</label><br>
+{% endfor %}
+
        <br>
-<!--        
-<input type="checkbox" id="soy" name="allergens" value="soy">
-<label for="soy">Soy</label>
-
-<input type="checkbox" id="peanuts" name="allergens" value="peanuts">
-<label for="peanuts">Peanuts</label>
-
-<input type="checkbox" id="dairy" name="allergens" value="dairy">
-<label for="dairy">Dairy</label>
-
-<input type="checkbox" id="gluten" name="allergens" value="gluten">
-<label for="gluten">Gluten</label>
-
-<input type="checkbox" id="egg" name="allergens" value="egg">
-<label for="egg">Egg</label>
-
-<input type="checkbox" id="shellfish" name="allergens" value="shellfish">
-<label for="shellfish">Shellfish</label>
-
-<input type="checkbox" id="nuts" name="allergens" value="nuts">
-<label for="nuts">Nuts</label>
-
-<input type="checkbox" id="sesame" name="allergens" value="sesame">
-<label for="sesame">Sesame</label>
-
-<input type="checkbox" id="none" name="allergens" value="none">
-<label for="none">None</label>
-<br> -->
-
 
     <!-- Expiration Date -->
     <h2>Expiration Date:</h2>

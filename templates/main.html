@@ -57,16 +57,17 @@ Posted by: {{post.user_email}}
     {% endif %}
 </div>
     <br>
-    <!-- Form to add a new comment -->
+
     <form method="post" action="{{url_for('add_comment')}}">
         <input type="hidden" name="post_id" value="{{ post.post_id }}">
         <div class="textbox">
-        <label class="comment_text">
-            <textarea name="comment_text" placeholder="Add a comment" required></textarea>
-        </label>
-    </div>
+            <label for="comment_text">Add a comment:</label>
+            <textarea name="comment_text" id = "comment_text" placeholder="Add a comment" required></textarea>
+        </div>
         <button type="submit">Add Comment</button>
     </form>
+    
+
 
 {% endif %}
 </div>
