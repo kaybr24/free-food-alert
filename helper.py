@@ -7,6 +7,7 @@ def display_posts(conn):
     returns a list of all active posts as dictionaries
     """
     curs = dbi.dict_cursor(conn)
+    # atomic reads should be thread-safe
     curs.execute("""
         select `post_id`, `user_email`, `description`, `post_date`, 
         date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
@@ -17,6 +18,10 @@ def display_posts(conn):
     return posts
 
 def find_guide_ratings(conn, specific_guide=None):
+    '''
+    if no specific_guide is specified, returns a dictionary of [avgrating, count(ratings)] for each guide
+    if a specific_guide is specified, returns a dictionary with one element (the rating, count pair for that guide)
+    '''
     curs = dbi.dict_cursor(conn)
     rated_guides = {}
     if specific_guide:
@@ -25,6 +30,7 @@ def find_guide_ratings(conn, specific_guide=None):
         rating = curs.fetchone()
         rated_guides = {specific_guide: [float(rating.get('avg(rating)')), float(rating.get('count(rating)'))]}
     else:
+        # atomic read should be thread-safe
         curs.execute("""select avg(rating), guide_email, count(rating)
             from rating 
             group by guide_email;
@@ -36,8 +42,8 @@ def find_guide_ratings(conn, specific_guide=None):
             count = guideDict.get('count(rating)')
             if stars:
                 rated_guides[guide] = [float(stars), int(count)]
-            else:  
-                rated_guides[guide] = [0, 0]
+            # else:  
+            #     rated_guides[guide] = [0, 0]
     return rated_guides
 
 def insert_rating(conn, rating):
@@ -46,6 +52,7 @@ def insert_rating(conn, rating):
     insert the new rating into the database
     """
     curs = dbi.dict_cursor(conn)
+    # atomic insert should be thread-safe
     query = """insert into rating(`post_id`, `guide_email`, `rater_email`, `rating`)
         values (%s, %s, %s, %s)
         on duplicate key update
@@ -61,7 +68,7 @@ def insert_rating(conn, rating):
     conn.commit()
 
 def find_post_age(post_date):
-    """given the age of a post, return a number, string pair
+    """given the age of a post, return a (number, string) pair
     representing the age and time units of the post"""
     today = datetime.now()
     delta = today - post_date
@@ -108,7 +115,8 @@ def remove_expired_posts(conn):
         DELETE FROM post
         WHERE expiration_date < %s
     """
-    curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
+    #curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
+    # atomic delete should be thread-safe
     curs.execute(query, [current_date])
     conn.commit()
     
@@ -119,7 +127,7 @@ def insert_comment(conn, post_id, user_email, comment):
     curs = dbi.dict_cursor(conn)
     now = datetime.now()
     commentDate = now.strftime('%Y-%m-%d %H:%M:%S')
-    
+    # atomic insert should be thread-safe
     curs.execute('''insert into comments(post_id, user_email, comment, date)
                     values(%s, %s, %s, %s)''',
                     [post_id, user_email, comment, commentDate])
@@ -134,6 +142,7 @@ def get_comments_for_post(conn, post_id):
     gets the comments for a post
     '''
     curs = dbi.dict_cursor(conn)
+    # atomic read should be thread-safe
     query = "SELECT * FROM comments WHERE post_id=%s ORDER BY date DESC"
     curs.execute(query, [post_id])
     return curs.fetchall()

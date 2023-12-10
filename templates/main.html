@@ -8,7 +8,7 @@
     about extra food. Our application Food Alert attempts to solve this problem by creating an easy and centralized way for students
     to post news about free food on campus. </p>
 
-<h3>Find free food on campus: </h3>
+<h2>Find free food on campus: </h2>
 
 <div class="post-container">
 {% for post in search_results %}
@@ -26,7 +26,7 @@ Location: {{post.building}}, {{post.location}}
     <br>
 {% endif %}
 Posted by: {{post.user_email}}
-{% if ratedGuides.get(post.user_email)[1] > 0 %}
+{% if ratedGuides.get(post.user_email, False) %}
     , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
 {% endif %}
 <!-- </pre> -->
@@ -35,12 +35,15 @@ Posted by: {{post.user_email}}
     <input type="hidden" name="user" value="{{cookie.get('username')}}">
     <input type="hidden" name="guide" value="{{post.user_email}}">
     <input type="hidden" name="postID" value="{{post.post_id}}">
+    <fieldset>
+    <legend display:none> Rate this food post out of 5 stars </legend>
     {% for star in range(1,6) %}
     <label class="post-rating" style="font-weight: normal;">
         {{star}} 
         <input type="radio" name="stars" value="{{star}}">
     </label>
     {% endfor %}
+    </fieldset>
     <input type="submit" value="rate this">
 </form>
 <br><br>
@@ -57,7 +60,9 @@ Posted by: {{post.user_email}}
     <form method="post" action="{{url_for('add_comment')}}">
         <input type="hidden" name="post_id" value="{{ post.post_id }}">
         <div class="textbox">
-        <textarea name="comment_text" placeholder="Add a comment" required></textarea>
+        <label class="comment_text">
+            <textarea name="comment_text" placeholder="Add a comment" required></textarea>
+        </label>
     </div>
         <button type="submit">Add Comment</button>
     </form>

@@ -56,7 +56,6 @@ def index():
             post['age'] = helper.find_post_age(post['post_date'])
         else:
             post['age'] = ''
-    ## TO-DO: Implement function to remove expired posts from the database
     # customize page based on login status
     if not session.get('logged_in', False): # if not logged in
         session['logged_in'] = False
@@ -92,7 +91,6 @@ def search_posts():
     '''
     Handles searching of posts based on specified search criteria
     '''
-    conn = dbi.connect()
     locations = information.locations
     if not session.get('logged_in', False): # if not logged in
         session['logged_in'] = False
@@ -106,6 +104,7 @@ def search_posts():
         search_information = {'location': location, 
                                 'allergens': allergens,
                                 'date_posted': date_posted}
+        conn = dbi.connect()
         data = search.search_for_post(conn, search_information)
         return render_template('search_results.html', title='Matching Food Posts', cookie=session, data=data)
     return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
@@ -130,31 +129,21 @@ def new_post():
         return redirect(url_for('user_profile'))
 
     if request.method == 'POST':
-        conn = dbi.connect()
-
-        # Retrieve form data
-        # full_user_email = request.form['user_email']
-        # user_email = full_user_email.split('@')[0]
-        # food_name = request.form['food_name']
-        # food_description = request.form['food_description']
-        # allergens = request.form.getlist('allergens')
-        # print("will allergens print?")
-        # print(''.join(allergens))
-        # expiration_date = request.form['expiration_date']
-        # building = request.form['building_dropdown']
-        # room_number = request.form['room_number']
 
         # Handle optional image upload
         food_image = request.files['food_image'] if 'food_image' in request.files else None
 
         # Insert into the database
         post_date = datetime.now()
-        insert.insert_post(conn, post_date, request.form)
+        conn1 = dbi.connect()
+        insert.insert_post(conn1, post_date, request.form)
         # insert.insert_post(conn, user_email, food_description, post_date, expiration_date, room_number, building, allergens)
         # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
-        all_posts = helper.display_posts(conn)
+        conn2 = dbi.connect()
+        all_posts = helper.display_posts(conn2)
 
-        insert.update_user_post_count(conn, user_email)
+        conn3 = dbi.connect()
+        insert.update_user_post_count(conn3, user_email)
 
         # Redirect to a success page or any other page
         return redirect(url_for('index'))
@@ -167,7 +156,6 @@ def registration():
     '''
     Register a new user and update the database
     '''
-    conn=dbi.connect()
     if request.method == 'POST':
         # Retrieve form data
         first_name = request.form['first_name']
@@ -195,11 +183,13 @@ def registration():
             return render_template('register_form.html', title='Register as a User', cookie=session, error='Please agree to the terms and conditions')
         
         # Check if user exists
-        existing_user = register.check_user_exists(conn, wellesley_email)
+        conn1=dbi.connect()
+        existing_user = register.check_user_exists(conn1, wellesley_email)
         if existing_user:
             return render_template('register_form.html', title='Register as a User', cookie=session, error='User already exists. Please login.')
         
-        result = register.register_user(conn, full_name, wellesley_email, hashed, date)
+        conn2=dbi.connect()
+        result = register.register_user(conn2, full_name, wellesley_email, hashed, date)
         if result:
             # Redirect to a success page or (currently) login page
             flash(f"Registered user {wellesley_email}")
