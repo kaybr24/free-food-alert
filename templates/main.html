@@ -35,6 +35,7 @@ Posted by: {{post.user_email}}
     <input type="hidden" name="user" value="{{cookie.get('username')}}">
     <input type="hidden" name="guide" value="{{post.user_email}}">
     <input type="hidden" name="postID" value="{{post.post_id}}">
+    <br/>
     <fieldset>
     <legend display:none> Rate this food post out of 5 stars </legend>
     {% for star in range(1,6) %}

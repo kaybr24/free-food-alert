@@ -186,6 +186,7 @@ def registration():
         conn1=dbi.connect()
         existing_user = register.check_user_exists(conn1, wellesley_email)
         if existing_user:
+            flash('User already exists. Please login.')
             return render_template('register_form.html', title='Register as a User', cookie=session, error='User already exists. Please login.')
         
         conn2=dbi.connect()
