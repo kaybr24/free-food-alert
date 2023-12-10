@@ -301,18 +301,12 @@ def add_comment():
         comment_text = data.get('comment_text')
 
         if not post_id:
-            flash("not postid")
-            return redirect(url_for('index'))
-        if not user_email:
-            flash('not user email')
+            flash("unable to comment")
             return redirect(url_for('index'))
         if not comment_text:
-            flash('not comment text')
+            flash('please provide comment text')
             return redirect(url_for('index'))
-        # if not post_id or not user_email or not comment_text:
-        #     flash('Invalid comment data.')
-        #     return redirect(url_for('index'))
-
+       
         # Insert the comment into the database
         conn = dbi.connect()
         helper.insert_comment(conn, post_id, user_email, comment_text)
