@@ -13,8 +13,8 @@ def search_for_post(conn, searched_item):
 
     query = "SELECT * FROM post WHERE"
 
-    if len(searched_item['location'])>0:
-        l = searched_item['location']
+    if len(searched_item['building'])>0:
+        l = searched_item['building']
         locations=tuple(x for x in l)
         #data check against list of locations - TODO
         query += " building IN {}".format(locations).replace(',)', ')')

@@ -97,11 +97,11 @@ def search_posts():
     possible_allergens = information.possible_allergens
 
     if request.method == 'POST':
-        location = request.form.getlist('location')
+        building = request.form.getlist('building')
         allergens = request.form.getlist('allergens')
         date_posted = request.form['date_posted']
 
-        search_information = {'location': location, 
+        search_information = {'building': building, 
                                 'allergens': allergens,
                                 'date_posted': date_posted}
         conn = dbi.connect()
@@ -349,4 +349,4 @@ if __name__ == '__main__':
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     app.debug = True
-    app.run('0.0.0.0',port)
+    app.run('0.0.0.0',port+1)
