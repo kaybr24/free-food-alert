@@ -48,9 +48,9 @@ def search_for_post(conn, searched_item):
         if 'building' in query:
             query += " AND"
         for allergen in allergens:
-            if allergen not in legalAllergens: # see if in subset of allergens
-                raise ValueError('illegal allergen')
-                return None
+            # if allergen not in legalAllergens: # see if in subset of allergens
+            #     raise ValueError('illegal allergen')
+            #     return None
             if allergen != allergens[0]:
                 query += " AND"
             query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
