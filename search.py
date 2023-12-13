@@ -2,8 +2,8 @@
 import cs304dbi as dbi
 from datetime import datetime
 
-legalAllergens =['soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame']
-legalBuildings = ['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
+legalAllergens = set(['soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame'])
+legalBuildings = set(['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
     'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
     'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
     'Collins Cinema', 'Continuing Education Office', 'Davis Hall', 'Davis Museum', 
@@ -18,7 +18,7 @@ legalBuildings = ['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Ba
     'Severance Hall', 'Shafer Hall', 'Shakespeare', 'Shepard House', 'Simpson Hall', 'Simpson West', 
     'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
      'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
-     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House']
+     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House'])
 
 def search_for_post(conn, searched_item):
     """
@@ -42,15 +42,18 @@ def search_for_post(conn, searched_item):
     
 
     if len(searched_item['allergens'])>0:
-        allergens = tuple(searched_item['allergens'])
+        allergens = [x.lower() for x in searched_item['allergens']]
         print("**************************************************")
         print(allergens)
         if 'building' in query:
             query += " AND"
+        # check that allergens are legal
+        if not set(allergens).issubset(legalAllergens):
+            print(set(allergens), legalAllergens)
+            raise ValueError('illegal allergen')
+            return None
+        # add to query
         for allergen in allergens:
-            # if allergen not in legalAllergens: # see if in subset of allergens
-            #     raise ValueError('illegal allergen')
-            #     return None
             if allergen != allergens[0]:
                 query += " AND"
             query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
@@ -79,9 +82,12 @@ if __name__ == '__main__':
     conn = dbi.connect()
     if ("Bates Hall", "Tupelo Pool") not in legalBuildings: # data check against list of locations
         print("success")
-    print(
-        ("Bates Hall") not in legalBuildings,
-        ("Bates Hall", "Tupelo Pool") not in legalBuildings,
-        ("Bates Hall", "Lulu Chow Wang Campus Center") not in legalBuildings,
-        ("Bates Hall",) not in legalBuildings
-    )
+    print ('gluten', not set(('gluten',)).issubset(legalAllergens))
+    print ('gluten, rice', not set(('gluten', 'rice',)).issubset(legalAllergens))
+    print ('rice', not set(('rice',)).issubset(legalAllergens))
+    # print(
+    #     ("Bates Hall") not in legalBuildings,
+    #     ("Bates Hall", "Tupelo Pool") not in legalBuildings,
+    #     ("Bates Hall", "Lulu Chow Wang Campus Center") not in legalBuildings,
+    #     ("Bates Hall",) not in legalBuildings
+    # )

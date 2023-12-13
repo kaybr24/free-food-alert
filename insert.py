@@ -18,6 +18,9 @@ def insert_post(conn, post_date, information):
                     [user_email, food_description, post_date, expiration_date, room_number, building, ','.join(allergens)])
     conn.commit()
 
+    curs.execute('''select last_insert_id()''')
+    return curs.fetchone().get('last_insert_id()')
+
 def update_user_post_count(conn, user_email):
     curs = conn.cursor()
     query = "SELECT COUNT(*) FROM post WHERE user_email=%s"
@@ -28,3 +31,21 @@ def update_user_post_count(conn, user_email):
     curs.execute(update_post_count, (posts, user_email))
 
     conn.commit()
+
+def insert_image(conn, user_email, post_id, filetype):
+    """
+    insert the user_email, post_id, and a unique image id into picture
+    """
+    # insert new image row
+    curs = conn.cursor()
+    query = """
+        INSERT INTO `picture`(user_email, post_id, filetype)
+        VALUES (%s, %s, %s);
+    """
+    curs.execute(query, [user_email, post_id, filetype])
+    conn.commit()
+    # find the image id
+    curs.execute("""
+        SELECT last_insert_id()
+    """)
+    return curs.fetchone()

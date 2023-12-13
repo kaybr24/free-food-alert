@@ -14,7 +14,16 @@
 {% for post in search_results %}
 <div class="post">
 <!-- <pre> -->
-[picture goes here]<br/>
+<!-- <div class="profile_pic">
+      {% if uid != '' and src != '' %}
+      <img src="{{src}}" alt ='Profile pic' width="100">
+      {% endif %}
+    </div>-->
+{% if img.get(post.post_id) %}
+[picture goes here]
+<img src="{{img.get(post.post_id)}}" alt="picture of {{post.description}}" width="200" height="100" >
+<br/>
+{% endif %}
 <strong>{{post.description}}</strong>
 <br>
 <em>{{post.age}} ago</em>

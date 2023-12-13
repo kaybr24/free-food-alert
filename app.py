@@ -23,6 +23,11 @@ from datetime import datetime, timedelta
 # Initialize the scheduler for deleting the expired post
 scheduler = BackgroundScheduler()
 
+# File upload handling
+UPLOAD_FOLDER = 'data/uploads/'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024  # 3 MB
+
 app.secret_key = 'your secret here'
 # replace that with a random key
 app.secret_key = ''.join([ random.choice(('ABCDEFGHIJKLMNOPQRSTUVXYZ' +
@@ -42,13 +47,27 @@ def index():
     ratings = helper.find_guide_ratings(conn)
 
     comments = {}
+    pictures = {}
     for post in all_posts:
         post_id = post.get('post_id')
         if post_id:
             post_comments = helper.get_comments_for_post(conn, post_id)
             comments[post_id] = post_comments
+            # if there is an image to be found
+            picIDs = helper.get_images_for_post(conn, post_id)
+            if picIDs:
+                for image in picIDs:
+                    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE!")
+                    image_id = image.get("image_id")
+                    filetype = image.get("filetype")
+                    picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
+                    print(f"post {post_id} has a pic named {picName}")
+                    file = os.path.join(app.config['UPLOAD_FOLDER'], "27_7.jpg") #url_for('data/uploads/', filename='/Image/27_7.jpg')
+                    pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName) # do I need to specify the image type?
+                    #send_from_directory(app.config['UPLOADS'],row['filename'])
+                print(pictures) 
     print("!!!!!!!!!!!!!!!!!!!!!")
-    print(comments)
+    #print(comments)
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
@@ -62,7 +81,8 @@ def index():
     print('**********************************')
     for key in session:
         print(key, session.get(key))
-    return render_template('main.html',title='Free Food Alert', comments = comments, search_results=all_posts, ratedGuides=ratings, cookie=session)
+    #print(file)
+    return render_template('main.html',title='Free Food Alert', comments = comments, search_results=all_posts, ratedGuides=ratings, cookie=session, img=pictures)
 
 @app.route('/rate-post/', methods=['GET', 'POST'])
 def rate_post():
@@ -130,15 +150,28 @@ def new_post():
 
     if request.method == 'POST':
 
-        # Handle optional image upload
-        food_image = request.files['food_image'] if 'food_image' in request.files else None
-
         # Insert into the database
         post_date = datetime.now()
         conn1 = dbi.connect()
-        insert.insert_post(conn1, post_date, request.form)
-        # insert.insert_post(conn, user_email, food_description, post_date, expiration_date, room_number, building, allergens)
-        # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
+        post_id = insert.insert_post(conn1, post_date, request.form)
+        print(">>>POST ID is :", post_id, "USER EMAIL is: ", user_email)
+
+        # Handle optional image upload
+        file = request.files['food_image'] if 'food_image' in request.files else None
+        if file and file.filename == "":
+            flash("No file selected")
+        if file and helper.allowed_file(file.filename): # if there was a file and it has a legal name
+            # insert image name into picture table
+            conn = dbi.connect()
+            filetype = file.filename.split('.')[-1]
+            print(f"file type is {filetype}")
+            image_id = insert.insert_image(conn, user_email, post_id, filetype)
+            # save image to uploads file
+            filename = secure_filename(str(post_id) + "_" + str(image_id) + "." + filetype)
+            print("filename is", filename)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            flash("You inserted a post with an image")
+        
         conn2 = dbi.connect()
         all_posts = helper.display_posts(conn2)
 
@@ -320,6 +353,12 @@ def logout():
     flash('You have been logged out.')
     return redirect(url_for('index'))
 
+@app.route('/picfile')
+def picfile():
+    session.clear()  # Clear all session variables
+    flash('You have been logged out.')
+    return redirect(url_for('index'))
+
 # Remove expired posts every 24 hours
 @scheduler.scheduled_job('interval', hours=24)
 def remove_expired_posts_job():
@@ -343,4 +382,4 @@ if __name__ == '__main__':
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     app.debug = True
-    app.run('0.0.0.0',port+1)
+    app.run('0.0.0.0',port)

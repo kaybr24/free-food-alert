@@ -1,6 +1,11 @@
 ## some helper functions
 import cs304dbi as dbi
 from datetime import datetime, timedelta
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def display_posts(conn):
     """
@@ -144,6 +149,16 @@ def get_comments_for_post(conn, post_id):
     curs = dbi.dict_cursor(conn)
     # atomic read should be thread-safe
     query = "SELECT * FROM comments WHERE post_id=%s ORDER BY date DESC"
+    curs.execute(query, [post_id])
+    return curs.fetchall()
+
+def get_images_for_post(conn, post_id):
+    '''
+    gets the ids of picture(s) for a post
+    '''
+    curs = dbi.dict_cursor(conn)
+    # atomic read should be thread-safe
+    query = "SELECT image_id, filetype FROM picture WHERE post_id = %s"
     curs.execute(query, [post_id])
     return curs.fetchall()
 
