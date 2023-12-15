@@ -1,4 +1,5 @@
 import cs304dbi as dbi
+from flask import flash
 
 def insert_post(conn, post_date, information):
     curs = dbi.dict_cursor(conn)
@@ -12,6 +13,10 @@ def insert_post(conn, post_date, information):
     building = information['building_dropdown']
     room_number = information['room_number']
 
+    # check if room number is an acceptable length
+    if len(room_number) > 30:
+        flash("Room numbers must be less than 30 characters long")
+        room_number = room_number[:30]            
 
     curs.execute('''insert into post(user_email, description, post_date, expiration_date, location, building, allergens)
                     values(%s, %s, %s, %s, %s, %s, %s)''',

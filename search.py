@@ -28,7 +28,9 @@ def search_for_post(conn, searched_item):
     """
     curs = dbi.dict_cursor(conn)
 
-    query = "SELECT * FROM post WHERE"
+    query = """SELECT post_id, user_email, description, post_date, 
+            expiration_date, location, building, allergens 
+            FROM post WHERE"""
 
     if len(searched_item['building'])>0:
         l = searched_item['building']
@@ -45,7 +47,7 @@ def search_for_post(conn, searched_item):
         allergens = [x.lower() for x in searched_item['allergens']]
         print("**************************************************")
         print(allergens)
-        if 'building' in query:
+        if 'building IN' in query:
             query += " AND"
         # check that allergens are legal
         if not set(allergens).issubset(legalAllergens):
@@ -66,8 +68,10 @@ def search_for_post(conn, searched_item):
         else:
             query += " post_date = '{}'".format(formatted_date)
       
-    if query == "SELECT * FROM post WHERE":
-        query = "SELECT * from post"
+    if query[-5:] == "WHERE":
+        query = query[:-5] # remove "where" from query ending
+
+    query += " ORDER BY post_date desc" # put newer postings on top
         
     print(query)
     curs.execute(query)

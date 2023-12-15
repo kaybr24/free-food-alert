@@ -24,7 +24,7 @@ from datetime import datetime, timedelta
 scheduler = BackgroundScheduler()
 
 # File upload handling
-UPLOAD_FOLDER = 'data/uploads/'
+UPLOAD_FOLDER = 'static/uploads/'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024  # 3 MB
 
@@ -62,10 +62,11 @@ def index():
                     filetype = image.get("filetype")
                     picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
                     print(f"post {post_id} has a pic named {picName}")
-                    file = os.path.join(app.config['UPLOAD_FOLDER'], "27_7.jpg") #url_for('data/uploads/', filename='/Image/27_7.jpg')
+                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName) #url_for('data/uploads/', filename='/Image/27_7.jpg')
                     pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName) # do I need to specify the image type?
                     #send_from_directory(app.config['UPLOADS'],row['filename'])
                 print(pictures) 
+                #print(url_for('static', filename='/Image/GP.png'))
     print("!!!!!!!!!!!!!!!!!!!!!")
     #print(comments)
     ## create time since posted tags
@@ -170,6 +171,7 @@ def new_post():
             filename = secure_filename(str(post_id) + "_" + str(image_id) + "." + filetype)
             print("filename is", filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            print(f"***IMAGE SAVED TO {os.path.join(app.config['UPLOAD_FOLDER'], filename)}")
             flash("You inserted a post with an image")
         
         conn2 = dbi.connect()
