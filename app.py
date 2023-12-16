@@ -279,10 +279,48 @@ def user_profile():
     conn = dbi.connect()
     user_data = profile.get_user_info(conn, user_email)
 
+    all_posts = profile.get_all_posts(conn, user_email)
+    ratings = helper.find_guide_ratings(conn)
+
+    comments = {}
+    pictures = {}
+    for post in all_posts:
+        post_id = post.get('post_id')
+        if post_id:
+            post_comments = helper.get_comments_for_post(conn, post_id)
+            comments[post_id] = post_comments
+            # if there is an image to be found
+            picIDs = helper.get_images_for_post(conn, post_id)
+            if picIDs:
+                for image in picIDs:
+                    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE!")
+                    image_id = image.get("image_id")
+                    filetype = image.get("filetype")
+                    picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
+                    print(f"post {post_id} has a pic named {picName}")
+                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName) #url_for('data/uploads/', filename='/Image/27_7.jpg')
+                    pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName) # do I need to specify the image type?
+                    #send_from_directory(app.config['UPLOADS'],row['filename'])
+                print(pictures) 
+                #print(url_for('static', filename='/Image/GP.png'))
+    print("!!!!!!!!!!!!!!!!!!!!!")
+    #print(comments)
+    ## create time since posted tags
+    for post in all_posts:
+        if 'post_date' in post:
+            #date_posted = datetime.strptime(post['post_date'], '%y-%m-%d %H:%M:%S')
+            post['age'] = helper.find_post_age(post['post_date'])
+        else:
+            post['age'] = ''
+
+    # customize page based on login status
+    if not session.get('logged_in', False): # if not logged in
+        session['logged_in'] = False    
+
     if not user_data:
         return "User not found."
 
-    return render_template('profile.html', title='View Profile', cookie=session, user=user_data)
+    return render_template('profile.html', title='View Profile', cookie=session, user=user_data, posts=all_posts, comments=comments, ratedGuides=ratings, img=pictures)
 
 
 
@@ -348,6 +386,40 @@ def add_comment():
         
         flash('Comment added successfully.')
         return redirect(url_for('index'))
+
+@app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
+def edit_post(post_id):
+    # Get the post data based on post_id
+    conn = dbi.connect()
+    post_data = helper.get_post_info(conn, post_id)
+    print(post_data)
+
+    if not post_data:
+        return "Post not found."
+
+    if request.method == 'POST':
+        # Update the post with the new data
+        updated_description = request.form['food_description']
+        updated_allergens = request.form.getlist('allergens')  
+        updated_expiration_date = request.form['expiration_date']
+        updated_building = request.form['building']
+        updated_room_number = request.form['room_number']
+
+        helper.update_post(
+            conn,
+            post_id,
+            updated_description,
+            updated_allergens,
+            updated_expiration_date,
+            updated_building,
+            updated_room_number
+        )  
+
+        return redirect(url_for('user_profile'))
+
+    return render_template('edit_post.html', title='Edit Post', post=post_data, cookie=session, possible_allergens=information.possible_allergens, locations=information.locations)
+
+
 
 @app.route('/logout')
 def logout():

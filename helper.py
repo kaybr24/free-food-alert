@@ -162,6 +162,39 @@ def get_images_for_post(conn, post_id):
     curs.execute(query, [post_id])
     return curs.fetchall()
 
+def get_post_info(conn, post_id):
+    '''
+    gets all information for a post
+    '''
+    curs = dbi.dict_cursor(conn)
+    query = "SELECT * from post WHERE post_id = %s"
+    curs.execute(query, [post_id])
+    return curs.fetchone()
+
+def update_post(conn, post_id, updated_description, updated_allergens, updated_expiration_date, updated_building,updated_room_number):
+    '''
+    update the post of the user
+    '''
+    curs = conn.cursor()
+    query = """
+        UPDATE post
+        SET description = %s,
+            allergens = %s,
+            expiration_date = %s,
+            building = %s,
+            location = %s
+        WHERE post_id = %s
+    """
+
+    allergens_str = ",".join(updated_allergens)
+
+   
+    curs.execute(query, (updated_description, allergens_str, updated_expiration_date, updated_building, updated_room_number, post_id))
+
+    conn.commit()
+
+
+
 
 
 if __name__ == '__main__':

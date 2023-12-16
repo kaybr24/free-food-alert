@@ -19,16 +19,10 @@ def validate_user(conn, user_email, password):
     user = curs.fetchone()
     return user
 
-# if __name__ == '__main__':
-#     db_to_use = 'wffa_db' 
-#     print('will connect to {}'.format(db_to_use))
-#     dbi.conf(db_to_use)
-#     conn = dbi.connect()
-#     result = validate_user(conn, 'rd100', '')
-#     print(result)
-#     if None:
-#         print("None is true")
-#     elif result:
-#         print("dictionary is true")
-#     else:
-#         print("Only True is true")
+def get_all_posts(conn, user_email):
+    curs = dbi.dict_cursor(conn)
+    curs.execute('''SELECT `post_id`, `user_email`, `description`, `post_date`, 
+        date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
+        from post where user_email = %s order by 'post_date' desc''', [user_email])
+    user_posts = curs.fetchall()
+    return user_posts

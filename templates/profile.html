@@ -16,6 +16,87 @@
   </form>
 {% endif %}
 
+<p><strong>Your Posts:</strong></p>
+
+
+<div class="post-container">
+  
+  {% for post in posts %}
+  <div class="post">
+  <!-- <pre> -->
+  <!-- <div class="profile_pic">
+        {% if uid != '' and src != '' %}
+        <img src="{{src}}" alt ='Profile pic' width="100">
+        {% endif %}
+      </div>-->
+  {% if img.get(post.post_id) %}
+  <img src="{{img.get(post.post_id)}}" alt="picture of {{post.description}}" width="368" height="205" >
+  <br/>
+  {% endif %}
+  <strong>{{post.description}}</strong>
+  <br>
+  <em>{{post.age}} ago</em>
+  <br/>
+  Location: {{post.building}}, {{post.location}}
+  <br>
+  {% if (post.allergens) %}
+      Allergen Warning: contains {{post.allergens}}
+      <br>
+  {% endif %}
+  Posted by: {{post.user_email}}
+  {% if ratedGuides.get(post.user_email, False) %}
+      , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
+  {% endif %}
+  <!-- </pre> -->
+  {% if cookie.get('logged_in') %}
+  <form method="post" action ="{{url_for('rate_post')}}">
+      <input type="hidden" name="user" value="{{cookie.get('username')}}">
+      <input type="hidden" name="guide" value="{{post.user_email}}">
+      <input type="hidden" name="postID" value="{{post.post_id}}">
+      <br/>
+      <fieldset>
+      <legend display:none> Rate this food post out of 5 stars </legend>
+      {% for star in range(1,6) %}
+      <label class="post-rating" style="font-weight: normal;">
+          {{star}} 
+          <input type="radio" name="stars" value="{{star}}">
+      </label>
+      {% endfor %}
+      </fieldset>
+      <input type="submit" value="rate this">
+  </form>
+  <br><br>
+  <div class="comments">
+      <h3>Comments:</h3>
+      {% if comments.get(post.post_id) %}
+          {% for comment in comments[post.post_id] %}
+              <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
+          {% endfor %}
+      {% endif %}
+  </div>
+      <br>
+  
+      <form method="post" action="{{url_for('add_comment')}}">
+          <input type="hidden" name="post_id" value="{{ post.post_id }}">
+          <div class="textbox">
+              <label for="comment_text">Add a comment:</label>
+              <textarea name="comment_text" id = "comment_text" placeholder="Add a comment" required></textarea>
+          </div>
+          <button type="submit">Add Comment</button>
+      </form>
+      {% if cookie.get('logged_in') and cookie.get('username') == post.user_email %}
+      <!-- Only show the "Edit" button if the user is logged in and is the author of the post -->
+      <form method="get" action="{{ url_for('edit_post', post_id=post.post_id) }}">
+        <button type="submit">Edit</button>
+      </form>
+    {% endif %}
+      
+  
+  
+  {% endif %}
+  </div>
+  {% endfor %}
+  </div>
 
 <form action="{{ url_for('logout') }}">
 <div class="button-format">
