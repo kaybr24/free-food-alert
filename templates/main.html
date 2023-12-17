@@ -13,12 +13,6 @@
 <div class="post-container">
 {% for post in search_results %}
 <div class="post">
-<!-- <pre> -->
-<!-- <div class="profile_pic">
-      {% if uid != '' and src != '' %}
-      <img src="{{src}}" alt ='Profile pic' width="100">
-      {% endif %}
-    </div>-->
 {% if img.get(post.post_id) %}
 <img src="{{img.get(post.post_id)}}" alt="picture of {{post.description}}" width="368" height="205" >
 <br/>

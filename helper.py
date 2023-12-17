@@ -162,6 +162,16 @@ def get_images_for_post(conn, post_id):
     curs.execute(query, [post_id])
     return curs.fetchall()
 
+def get_image(conn, image_id):
+    '''
+    gets the post ids of a picture
+    '''
+    curs = dbi.cursor(conn)
+    # atomic read should be thread-safe
+    query = "SELECT post_id, filetype FROM picture WHERE image_id = %s"
+    curs.execute(query, [image_id])
+    return curs.fetchone()[0]
+
 
 
 if __name__ == '__main__':
@@ -176,3 +186,4 @@ if __name__ == '__main__':
     print(find_guide_ratings(conn))
     print(find_guide_ratings(conn, 'kb102'))
     #print(display_posts(conn))
+    print(get_image(conn, 3))
