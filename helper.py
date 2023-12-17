@@ -69,8 +69,14 @@ def insert_rating(conn, rating):
         rating.get('stars'),
         rating.get('stars')
         ]
-    curs.execute(query, values)
+    result = curs.execute(query, values)
     conn.commit()
+    # result is 1 if rating was inserted, and 2 if rating was updated
+    # not sure why, but I noticed this output behaviour
+    if result == 2:
+        return f"You updated your rating of {rating.get('guide')}'s post to be {rating.get('stars')} out of 5 stars"
+    else:
+        return f"You rated {rating.get('guide')}'s post {rating.get('stars')} out of 5 stars"
 
 def find_post_age(post_date):
     """given the age of a post, return a (number, string) pair

@@ -8,7 +8,8 @@
 <p>Email: {{ user.user_email }}</p>
 <p>Name: {{ user.name }}</p>
 <p>Join Date: {{ user.join_date }}</p>
-<p>Post Count: {{ user.post_count }}</p>
+<p>Active Post Count: {{ user.active_posts }}</p>
+<p>Historical Post Count: {{ user.post_count }}</p>
 
 {% if user.food_guide != 1 %}
   <form action="{{ url_for('become_food_guide') }}" method="post">
@@ -16,19 +17,13 @@
   </form>
 {% endif %}
 
-<p><strong>Your Posts:</strong></p>
+<p><strong>Your Active Posts:</strong></p>
 
 
 <div class="post-container">
   
   {% for post in posts %}
   <div class="post">
-  <!-- <pre> -->
-  <!-- <div class="profile_pic">
-        {% if uid != '' and src != '' %}
-        <img src="{{src}}" alt ='Profile pic' width="100">
-        {% endif %}
-      </div>-->
   {% if img.get(post.post_id) %}
   <img src="{{img.get(post.post_id)}}" alt="picture of {{post.description}}" width="368" height="205" >
   <br/>
@@ -49,22 +44,6 @@
   {% endif %}
   <!-- </pre> -->
   {% if cookie.get('logged_in') %}
-  <form method="post" action ="{{url_for('rate_post')}}">
-      <input type="hidden" name="user" value="{{cookie.get('username')}}">
-      <input type="hidden" name="guide" value="{{post.user_email}}">
-      <input type="hidden" name="postID" value="{{post.post_id}}">
-      <br/>
-      <fieldset>
-      <legend display:none> Rate this food post out of 5 stars </legend>
-      {% for star in range(1,6) %}
-      <label class="post-rating" style="font-weight: normal;">
-          {{star}} 
-          <input type="radio" name="stars" value="{{star}}">
-      </label>
-      {% endfor %}
-      </fieldset>
-      <input type="submit" value="rate this">
-  </form>
   <br><br>
   <div class="comments">
       <h3>Comments:</h3>

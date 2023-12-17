@@ -57,18 +57,17 @@ def index():
             # if there is an image to be found
             picIDs = helper.get_images_for_post(conn, post_id)
             if picIDs:
-                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE!")
                 for image in picIDs:
                     image_id = image.get("image_id")
                     filetype = image.get("filetype")
                     picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
-                    #print(f"post {post_id} has a pic named {picName}")
                     file = os.path.join(app.config['UPLOAD_FOLDER'], picName)
                     pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName)
                     #send_from_directory(app.config['UPLOADS'],row['filename'])
-                print(pictures) 
-    print("!!!!!!!!!!!!!!!!!!!!!")
+    print(pictures) 
+    #print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE")
     #print(comments)
+
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
@@ -80,6 +79,7 @@ def index():
     if not session.get('logged_in', False): # if not logged in
         session['logged_in'] = False
     print('**********************************')
+    ######################################################      DELETE THIS for key in session before submitting
     for key in session:
         print(key, session.get(key))
     #print(file)
@@ -89,38 +89,44 @@ def index():
 def rate_post():
     """
     handle rating posts
-    TO-DO: make this into Ajax embedded in homepage
     """
-    if request.method == 'POST':
-        data=request.form
-        dbi.conf('wffa_db')
+    if request.method == 'GET':
+        # go back
+        return redirect(url_for('index'))
+    else: # request.method == 'POST':
+        data = request.form
         conn = dbi.connect()
         # check if they are rating themselves
         if data.get('guide') == data.get('user'):
             flash(f"You can not rate yourself")
             return redirect(url_for('index'))
         else:
-            helper.insert_rating(conn, data)
-            flash(f"You rated {data.get('guide')}'s post {data.get('stars')} out of 5 stars")
+            rate_msg = helper.insert_rating(conn, data)
+            flash(rate_msg)
             return redirect(url_for('index'))
-    else: # request.method == 'GET':
-        # go back
-        return redirect(url_for('index'))
 
-@app.route('/search/', methods = ['GET', 'POST'])
+@app.route('/search/', methods = ['GET'])
 def search_posts():
     '''
     Handles searching of posts based on specified search criteria
     '''
-    locations = information.locations
-    if not session.get('logged_in', False): # if not logged in
+    # if not logged in, for custom display in base.html
+    if not session.get('logged_in', False): 
         session['logged_in'] = False
-    possible_allergens = information.possible_allergens
 
-    if request.method == 'POST':
-        building = request.form.getlist('building')
-        allergens = request.form.getlist('allergens')
-        date_posted = request.form['date_posted']
+    # retireve information on valid search results
+    possible_allergens = information.possible_allergens
+    locations = information.locations
+
+    # user has not searched anything yet
+    if not request.args: 
+        return render_template('search_form.html', title='Filter Food Posts', cookie=session, 
+                                locations=locations, possible_allergens=possible_allergens)
+    # user wants to see search results
+    else: 
+        building = request.args.getlist('building')
+        allergens = request.args.getlist('allergens')
+        date_posted = request.args['date_posted']
 
         search_information = {'building': building, 
                                 'allergens': allergens,
@@ -128,8 +134,7 @@ def search_posts():
         conn = dbi.connect()
         data = search.search_for_post(conn, search_information)
         return render_template('search_results.html', title='Matching Food Posts', cookie=session, data=data)
-    return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
-
+    
 
 @app.route('/insert/', methods=['GET', 'POST'])
 def new_post():
@@ -149,13 +154,21 @@ def new_post():
         flash("Please become a food guide ")
         return redirect(url_for('user_profile'))
 
-    if request.method == 'POST':
+    if request.method == 'GET':
+        # Render the form template for GET requests
+        return render_template('new_post_form.html', title='Insert New Food Posting', cookie=session, 
+                                possible_allergens=information.possible_allergens)
+
+    elif request.method == 'POST':
 
         # Insert into the database
         post_date = datetime.now()
-        conn1 = dbi.connect()
-        post_id = insert.insert_post(conn1, post_date, request.form)
+        conn = dbi.connect()
+        post_id = insert.insert_post(conn, post_date, request.form)
         print(">>>POST ID is :", post_id, "USER EMAIL is: ", user_email)
+
+        # increment historical post count by 1
+        insert.update_user_historical_post_count(conn, user_email)
 
         # Handle optional image upload
         file = request.files['food_image'] if 'food_image' in request.files else None
@@ -163,10 +176,10 @@ def new_post():
             flash("No file selected")
         if file and helper.allowed_file(file.filename): # if there was a file and it has a legal name
             # insert image name into picture table
-            conn = dbi.connect()
+            conn2 = dbi.connect()
             filetype = file.filename.split('.')[-1]
             print(f"file type is {filetype}")
-            image_id = insert.insert_image(conn, user_email, post_id, filetype)
+            image_id = insert.insert_image(conn2, user_email, post_id, filetype)
             # save image to uploads file
             filename = secure_filename(str(post_id) + "_" + str(image_id) + "." + filetype)
             print("filename is", filename)
@@ -174,24 +187,20 @@ def new_post():
             print(f"***IMAGE SAVED TO {os.path.join(app.config['UPLOAD_FOLDER'], filename)}")
             flash("You inserted a post with an image")
         
-        conn2 = dbi.connect()
-        all_posts = helper.display_posts(conn2)
-
-        conn3 = dbi.connect()
-        insert.update_user_post_count(conn3, user_email)
+        all_posts = helper.display_posts(conn)
 
         # Redirect to a success page or any other page
         return redirect(url_for('index'))
-
-    # Render the form template for GET requests
-    return render_template('new_post_form.html', title='Insert New Food Posting', cookie=session, possible_allergens=information.possible_allergens)
 
 @app.route('/registration', methods=['GET', 'POST'])
 def registration():
     '''
     Register a new user and update the database
     '''
-    if request.method == 'POST':
+    if request.method == 'GET':
+        # Render the registration form for GET requests
+        return render_template('register_form.html', title='Register as a User', cookie=session, error=None)
+    else: # if request.method == 'POST':
         # Retrieve form data
         first_name = request.form['first_name']
         last_name = request.form['last_name']
@@ -237,14 +246,9 @@ def registration():
         else:
             flash("Registration failed. Please try again.")
             return render_template('register_form.html', title='Register as a User', cookie=session, error='Registration failed. Please try again.') # where should this show?
+        
 
-    else:
-        # Render the registration form for GET requests
-        return render_template('register_form.html', title='Register as a User', cookie=session, error=None)
 
-"""
-Lets users become food guides (ie, food guide column for user becomes a 1)
-"""
 @app.route('/become_food_guide', methods=['POST'])
 def become_food_guide():
     '''
@@ -275,10 +279,11 @@ def user_profile():
     if not user_email: #not logged in
         return redirect(url_for('login'))
 
-    # Get user data from the database (replace with your logic)
+    # Get user data from the database
     conn = dbi.connect()
     user_data = profile.get_user_info(conn, user_email)
-
+    active_post_count = insert.get_active_user_post_count(conn, user_email)
+    user_data["active_posts"] = active_post_count
     all_posts = profile.get_all_posts(conn, user_email)
     ratings = helper.find_guide_ratings(conn)
 
@@ -329,6 +334,11 @@ def login():
     '''
     Allows users to login to the website.
     '''
+    if request.method == 'GET':
+        # Render the login form for GET requests
+        print("***************recieved GET login request")
+        return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
+
     if request.method == 'POST':
         user_email = request.form['user_email']
         password = request.form['password']
@@ -358,10 +368,7 @@ def login():
         else: # incorrect username
             flash('login incorrect. Try again or join')
             return redirect(url_for('index'))
-    else:
-        # Render the login form for GET requests
-        print("***************recieved GET login request")
-        return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
+    
 
 @app.route('/add_comment', methods=['POST'])
 def add_comment():
@@ -397,7 +404,11 @@ def edit_post(post_id):
     if not post_data:
         return "Post not found."
 
-    if request.method == 'POST':
+    if request.method == 'GET':
+        return render_template('edit_post.html', title='Edit Post', post=post_data, cookie=session, 
+                possible_allergens=information.possible_allergens, locations=information.locations)
+
+    elif request.method == 'POST':
         # Update the post with the new data
         updated_description = request.form['food_description']
         updated_allergens = request.form.getlist('allergens')  
@@ -416,9 +427,6 @@ def edit_post(post_id):
         )  
 
         return redirect(url_for('user_profile'))
-
-    return render_template('edit_post.html', title='Edit Post', post=post_data, cookie=session, possible_allergens=information.possible_allergens, locations=information.locations)
-
 
 
 @app.route('/logout')

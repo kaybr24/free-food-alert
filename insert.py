@@ -2,6 +2,10 @@ import cs304dbi as dbi
 from flask import flash
 
 def insert_post(conn, post_date, information):
+    """
+    Insert a new food post into the database, given post information. 
+    Returns the new post_id
+    """
     curs = dbi.dict_cursor(conn)
     full_user_email = information['user_email']
     user_email = full_user_email.split('@')[0]
@@ -26,15 +30,23 @@ def insert_post(conn, post_date, information):
     curs.execute('''select last_insert_id()''')
     return curs.fetchone().get('last_insert_id()')
 
-def update_user_post_count(conn, user_email):
+def get_active_user_post_count(conn, user_email):
+    """
+    Finds count of active posts made by user
+    """
     curs = conn.cursor()
-    query = "SELECT COUNT(*) FROM post WHERE user_email=%s"
-    curs.execute(query, (user_email,))
-    posts = curs.fetchone()[0]
+    query = "SELECT COUNT(post_id) FROM post WHERE user_email=%s"
+    curs.execute(query, [user_email])
+    numPosts = curs.fetchone()[0]
+    return numPosts
 
-    update_post_count = "UPDATE user SET post_count = %s where user_email = %s"
-    curs.execute(update_post_count, (posts, user_email))
-
+def update_user_historical_post_count(conn, user_email):
+    """
+    Updates the count of historical posts made by user - CURRENTLY FIGHTING OVER SAME COLUMN
+    """
+    curs = conn.cursor()
+    query = "UPDATE user SET post_count = post_count + 1 where user_email = %s"
+    curs.execute(query, (user_email))
     conn.commit()
 
 def insert_image(conn, user_email, post_id, filetype):
