@@ -209,3 +209,4 @@ if __name__ == '__main__':
     print(find_guide_ratings(conn))
     print(find_guide_ratings(conn, 'kb102'))
     #print(display_posts(conn))
+    print(get_image(conn, 3))

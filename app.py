@@ -24,7 +24,8 @@ from datetime import datetime, timedelta
 scheduler = BackgroundScheduler()
 
 # File upload handling
-UPLOAD_FOLDER = 'static/uploads/'
+# I am using the static folder because there are no private images that can't be viewed by everyone
+UPLOAD_FOLDER = 'static/uploads/' 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024  # 3 MB
 
@@ -56,17 +57,16 @@ def index():
             # if there is an image to be found
             picIDs = helper.get_images_for_post(conn, post_id)
             if picIDs:
+                print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE!")
                 for image in picIDs:
-                    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE!")
                     image_id = image.get("image_id")
                     filetype = image.get("filetype")
                     picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
-                    print(f"post {post_id} has a pic named {picName}")
-                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName) #url_for('data/uploads/', filename='/Image/27_7.jpg')
-                    pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName) # do I need to specify the image type?
+                    #print(f"post {post_id} has a pic named {picName}")
+                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName)
+                    pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName)
                     #send_from_directory(app.config['UPLOADS'],row['filename'])
                 print(pictures) 
-                #print(url_for('static', filename='/Image/GP.png'))
     print("!!!!!!!!!!!!!!!!!!!!!")
     #print(comments)
     ## create time since posted tags
@@ -131,7 +131,7 @@ def search_posts():
     return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
 
 
-@app.route('/insert', methods=['GET', 'POST'])
+@app.route('/insert/', methods=['GET', 'POST'])
 def new_post():
     '''
     Create a new post with given information
