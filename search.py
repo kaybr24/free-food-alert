@@ -1,4 +1,3 @@
-#Kayley's search file with queries 
 import cs304dbi as dbi
 from datetime import datetime
 import information
@@ -47,12 +46,13 @@ def search_for_post(conn, searched_item):
             query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
 
     if searched_item['date_posted']:
-        formatted_date = datetime.strptime(searched_item['date_posted'], '%Y-%m-%d').strftime('%Y-%m-%d')
+        #formatted_date = datetime.strptime(searched_item['date_posted'], '%Y-%m-%d').strftime('%Y-%m-%d')
+        formatted_date = searched_item['date_posted']
 
-        if 'building' in query or 'allergens' in query:
+        if 'building IN' in query or 'allergens not' in query:
             query += " AND post_date >= '{}'".format(formatted_date)
         else:
-            query += " post_date = '{}'".format(formatted_date)
+            query += " post_date >= '{}'".format(formatted_date)
       
     if query[-5:] == "WHERE":
         query = query[:-5] # remove "where" from query ending

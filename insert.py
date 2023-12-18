@@ -51,7 +51,7 @@ def update_user_historical_post_count(conn, user_email):
 
 def insert_image(conn, user_email, post_id, filetype):
     """
-    insert the user_email, post_id, and a unique image id into picture
+    insert the user_email, post_id, and a unique image id into picture table
     """
     # insert new image row
     curs = conn.cursor()

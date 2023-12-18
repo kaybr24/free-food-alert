@@ -43,7 +43,7 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 @app.route('/')
 def index(): 
     conn = dbi.connect()
-    helper.remove_expired_posts(conn)
+    #helper.remove_expired_posts(conn)
     all_posts = helper.display_posts(conn)
     ratings = helper.find_guide_ratings(conn)
 
@@ -170,7 +170,7 @@ def new_post():
         # increment historical post count by 1
         insert.update_user_historical_post_count(conn, user_email)
 
-        # Handle optional image upload
+        # Handle optional image upload - assume there is only one image
         file = request.files['food_image'] if 'food_image' in request.files else None
         if file and file.filename == "":
             flash("No file selected")
@@ -329,7 +329,7 @@ def user_profile():
 
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login/', methods=['GET', 'POST'])
 def login():
     '''
     Allows users to login to the website.
@@ -363,7 +363,7 @@ def login():
                 return redirect( url_for('user_profile') )
             else:
                 flash('login incorrect. Try again or join') #  incorrect password
-                return redirect(url_for('index'))
+                return redirect(url_for('login'))
 
         else: # incorrect username
             flash('login incorrect. Try again or join')
