@@ -212,6 +212,22 @@ def update_post(conn, post_id, updated_description, updated_allergens, updated_e
 
     conn.commit()
 
+def remove_post(conn, post_id):
+    """
+    Remove a post and associated comments and images from the database.
+    """
+    curs = dbi.dict_cursor(conn)
+
+    # Delete comments for the post
+    curs.execute("DELETE FROM comments WHERE post_id = %s", [post_id])
+
+    # Delete images for the post
+    curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
+
+    # Delete the post
+    curs.execute("DELETE FROM post WHERE post_id = %s", [post_id])
+
+    conn.commit()
 
 
 # def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, room_number, filename):
