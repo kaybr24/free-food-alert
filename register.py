@@ -2,6 +2,7 @@ import cs304dbi as dbi
 
 
 def register_user(conn, full_name, wellesley_email, password, date):
+    """Registers a new user in the database."""
     curs = dbi.dict_cursor(conn)
     
     curs.execute("""
@@ -14,6 +15,7 @@ def register_user(conn, full_name, wellesley_email, password, date):
     return True  # successfully registered
 
 def check_user_exists(conn, wellesley_email):
+    """Checks if a user with the given Wellesley College email exists in the database."""
     curs = dbi.dict_cursor(conn)
     # query = "SELECT * FROM users WHERE wellesley_email = %s", [wellesley_email]
     curs.execute('''SELECT * from user where user_email=%s ''', [wellesley_email])
