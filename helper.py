@@ -12,14 +12,27 @@ def display_posts(conn):
     returns a list of all active posts as dictionaries
     """
     curs = dbi.dict_cursor(conn)
-    # atomic reads should be thread-safe
-    curs.execute("""
-        select `post_id`, `user_email`, `description`, `post_date`, 
+    current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    query = """
+        SELECT  `post_id`, `user_email`, `description`, `post_date`, 
         date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
-        from post
+        FROM post
+        WHERE expiration_date >= %s
         order by `post_date` desc;
-    """)
+    """
+    
+    curs.execute(query, (current_date,))
     posts = curs.fetchall()
+
+
+    # curs.execute("""
+    #     select `post_id`, `user_email`, `description`, `post_date`, 
+    #     date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
+    #     from post
+    #     order by `post_date` desc;
+    # """)
+    # posts = curs.fetchall()
     return posts
 
 def find_guide_ratings(conn, specific_guide=None):
@@ -154,7 +167,7 @@ def get_comments_for_post(conn, post_id):
     '''
     curs = dbi.dict_cursor(conn)
     # atomic read should be thread-safe
-    query = "SELECT * FROM comments WHERE post_id=%s ORDER BY date DESC"
+    query = "SELECT 'comment_id', 'post_id', 'user_email', 'comment', 'date' FROM comments WHERE post_id=%s ORDER BY date DESC"
     curs.execute(query, [post_id])
     return curs.fetchall()
 
@@ -201,7 +214,59 @@ def update_post(conn, post_id, updated_description, updated_allergens, updated_e
 
 
 
+# def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, room_number, filename):
+#     curs = dbi.dict_cursor(conn)
+#     query = """
+#         UPDATE post
+#         SET description=%s, allergens=%s, expiration_date=%s, building=%s, room_number=%s, image_filename=%s
+#         WHERE post_id=%s
+#     """
+#     curs.execute(query, (description, allergens, expiration_date, building, room_number, filename, post_id))
+#     conn.commit()
 
+def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
+    '''
+    Update a post with new information, and delete picture from table
+    '''
+    curs = dbi.dict_cursor(conn)
+    allergens_str = ",".join(allergens)
+    query = """
+        UPDATE post
+        SET description=%s, allergens=%s, expiration_date=%s, building=%s, location=%s
+        WHERE post_id=%s
+    """
+    curs.execute(query, (description, allergens_str, expiration_date, building, location, post_id))
+    
+    # Delete the existing image associated with the post in the picture table
+    delete_query = """
+        DELETE FROM picture
+        WHERE post_id = %s
+    """
+    curs.execute(delete_query, (post_id,))
+    print("******************")
+    print(post_id)
+    conn.commit()
+    
+    # Insert the new image associated with the post
+    insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email)
+
+
+
+
+def insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
+    '''
+    Update the picture table with image
+    '''
+    curs = dbi.dict_cursor(conn)
+    insert_query = """
+        INSERT INTO picture (user_email, post_id, filetype)
+        VALUES (%s, %s, %s)
+    """
+    if image_filename:
+        parts = image_filename.split("_")
+        curs.execute(insert_query, (user_email, post_id, 'jpg'))  # only using jpg for now
+        conn.commit()
+    
 
 if __name__ == '__main__':
     db_to_use = 'wffa_db' 

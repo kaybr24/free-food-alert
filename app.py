@@ -1,6 +1,6 @@
 from flask import (Flask, render_template, make_response, url_for, request,
                    redirect, flash, session, send_from_directory, jsonify)
-from apscheduler.schedulers.background import BackgroundScheduler
+# from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
@@ -21,7 +21,7 @@ import information
 from datetime import datetime, timedelta
 
 # Initialize the scheduler for deleting the expired post
-scheduler = BackgroundScheduler()
+# scheduler = BackgroundScheduler()
 
 # File upload handling
 # I am using the static folder because there are no private images that can't be viewed by everyone
@@ -43,7 +43,7 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 @app.route('/')
 def index(): 
     conn = dbi.connect()
-    #helper.remove_expired_posts(conn)
+    # helper.remove_expired_posts(conn)
     all_posts = helper.display_posts(conn)
     ratings = helper.find_guide_ratings(conn)
 
@@ -399,7 +399,7 @@ def edit_post(post_id):
     # Get the post data based on post_id
     conn = dbi.connect()
     post_data = helper.get_post_info(conn, post_id)
-    print(post_data)
+    user_email = session.get('username')
 
     if not post_data:
         return "Post not found."
@@ -410,21 +410,43 @@ def edit_post(post_id):
 
     elif request.method == 'POST':
         # Update the post with the new data
+        conn = dbi.connect()
         updated_description = request.form['food_description']
         updated_allergens = request.form.getlist('allergens')  
         updated_expiration_date = request.form['expiration_date']
         updated_building = request.form['building']
         updated_room_number = request.form['room_number']
 
-        helper.update_post(
+        # helper.update_post(
+        #     conn,
+        #     post_id,
+        #     updated_description,
+        #     updated_allergens,
+        #     updated_expiration_date,
+        #     updated_building,
+        #     updated_room_number,
+        # )  
+        new_image = request.files['food_image'] if 'food_image' in request.files else None
+        image_filename = None
+
+        if new_image and new_image.filename != "":
+            filename = secure_filename(f"{post_id}_1.{new_image.filename.split('.')[-1]}")
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            new_image.save(filepath)
+            image_filename = filename
+
+        # Update the post with the new image information
+        helper.update_post_with_image(
             conn,
             post_id,
             updated_description,
             updated_allergens,
             updated_expiration_date,
             updated_building,
-            updated_room_number
-        )  
+            updated_room_number,
+            image_filename, 
+            user_email
+        )
 
         return redirect(url_for('user_profile'))
 
@@ -441,15 +463,15 @@ def picfile():
     flash('You have been logged out.')
     return redirect(url_for('index'))
 
-# Remove expired posts every 24 hours
-@scheduler.scheduled_job('interval', hours=24)
-def remove_expired_posts_job():
-    conn = dbi.connect()
-    helper.remove_expired_posts(conn)
-    print('Expired posts have been removed.')
+# # Remove expired posts every 24 hours
+# @scheduler.scheduled_job('interval', hours=24)
+# def remove_expired_posts_job():
+#     conn = dbi.connect()
+#     helper.remove_expired_posts(conn)
+#     print('Expired posts have been removed.')
 
 # Start the scheduler
-scheduler.start()
+# scheduler.start()
 
 if __name__ == '__main__':
     import sys, os
