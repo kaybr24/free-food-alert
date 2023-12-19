@@ -1,78 +1,84 @@
 {% extends "base.html" %}
 
 {% block main_content %}
-<h1>Welcome to the Wellesley College Free Food Alert!</h1>
+  <h1>Welcome to the Wellesley College Free Food Alert!</h1>
 
-<p>Many events occur on Wellesley College's campus, oftentimes leaving behind free, excess food that students are not aware of. 
-    Furthermore, there currently exists no efficient and easy way for students to communicate with each other and spread awareness 
+  <p>Many events occur on Wellesley College's campus, oftentimes leaving behind free, excess food that students are not aware of.
+    Furthermore, there currently exists no efficient and easy way for students to communicate with each other and spread awareness
     about extra food. Our application Food Alert attempts to solve this problem by creating an easy and centralized way for students
     to post news about free food on campus. </p>
 
-<h2>Find free food on campus: </h2>
+  <h2>Find free food on campus: </h2>
 
-<div class="post-container">
-{% for post in search_results %}
-<div class="post">
-{% if img.get(post.post_id) %}
-<img src="{{img.get(post.post_id)}}" alt="picture of {{post.description}}" width="368" height="205" >
-<br/>
-{% endif %}
-<strong>{{post.description}}</strong>
-<br>
-<em>{{post.age}} ago</em>
-<br>
-Location: {{post.building}}, {{post.location}}
-<br>
-{% if (post.allergens) %}
-    Allergen Warning: contains {{post.allergens}}
-    <br>
-{% endif %}
-Posted by: {{post.user_email}}
-{% if ratedGuides.get(post.user_email, False) %}
-    , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
-{% endif %}
-<!-- </pre> -->
-{% if cookie.get('logged_in') %}
-<form method="post" action ="{{url_for('rate_post')}}">
-    <input type="hidden" name="user" value="{{cookie.get('username')}}">
-    <input type="hidden" name="guide" value="{{post.user_email}}">
-    <input type="hidden" name="postID" value="{{post.post_id}}">
-    <br/>
-    <fieldset>
-    <legend display:none> Rate this food post out of 5 stars </legend>
-    {% for star in range(1,6) %}
-    <label class="post-rating" style="font-weight: normal;">
-        {{star}} 
-        <input type="radio" name="stars" value="{{star}}">
-    </label>
+  <div class="post-container">
+    {% for post in search_results %}
+      <div class="post">
+        {% if img.get(post.post_id) %}
+          <img src="{{ img.get(post.post_id) }}" alt="picture of {{ post.description }}" width="368" height="205">
+          <br/>
+        {% endif %}
+        <strong>{{ post.description }}</strong>
+        <br>
+        <em>{{ post.age }} ago</em>
+        <br>
+        Location: {{ post.building }}, {{ post.location }}
+        <br>
+        {% if (post.allergens) %}
+          Allergen Warning: contains {{ post.allergens }}
+          <br>
+        {% endif %}
+        Posted by: {{ post.user_email }}
+        {% if ratedGuides.get(post.user_email, False) %}
+          , who is rated {{ ratedGuides.get(post.user_email)[0] }} out of 5 stars ({{ ratedGuides.get(post.user_email)[1] }} ratings)
+        {% endif %}
+
+        {% if cookie.get('logged_in') %}
+          <form method="post" action="{{ url_for('rate_post') }}">
+            <input type="hidden" name="user" value="{{ cookie.get('username') }}">
+            <input type="hidden" name="guide" value="{{ post.user_email }}">
+            <input type="hidden" name="postID" value="{{ post.post_id }}">
+            <br/>
+            <fieldset>
+              <legend display:none> Rate this food post out of 5 stars </legend>
+              {% for star in range(1,6) %}
+                <label class="post-rating" style="font-weight: normal;">
+                  {{ star }}
+                  <input type="radio" name="stars" value="{{ star }}">
+                </label>
+              {% endfor %}
+            </fieldset>
+            <input type="submit" value="rate this">
+          </form>
+          <br><br>
+
+          <div class="comments">
+            <h3>Comments:</h3>
+            {% if comments.get(post.post_id) %}
+              {% for comment in comments[post.post_id] %}
+                <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <br>
+
+          <form method="post" action="{{ url_for('add_comment') }}">
+            <input type="hidden" name="post_id" value="{{ post.post_id }}">
+            <div class="textbox">
+              <label for="comment_text">Add a comment:</label>
+              <textarea name="comment_text" id="comment_text" placeholder="Add a comment" required></textarea>
+            </div>
+            <button type="submit">Add Comment</button>
+          </form>
+
+          {% if post.user_email == cookie.get('username') %}
+            <!-- Display delete button only if the logged-in user is the owner of the post -->
+            <form method="post" action="{{ url_for('delete_post', post_id=post.post_id) }}" onsubmit="return confirm('Are you sure you want to delete this post?');">
+              <input type="submit" value="Delete">
+            </form>
+          {% endif %}
+        {% endif %}
+      </div>
     {% endfor %}
-    </fieldset>
-    <input type="submit" value="rate this">
-</form>
-<br><br>
-<div class="comments">
-    <h3>Comments:</h3>
-    {% if comments.get(post.post_id) %}
-        {% for comment in comments[post.post_id] %}
-            <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
-        {% endfor %}
-    {% endif %}
-</div>
-    <br>
-
-    <form method="post" action="{{url_for('add_comment')}}">
-        <input type="hidden" name="post_id" value="{{ post.post_id }}">
-        <div class="textbox">
-            <label for="comment_text">Add a comment:</label>
-            <textarea name="comment_text" id = "comment_text" placeholder="Add a comment" required></textarea>
-        </div>
-        <button type="submit">Add Comment</button>
-    </form>
-    
-
-
-{% endif %}
-</div>
-{% endfor %}
-</div>
+  </div>
 {% endblock %}

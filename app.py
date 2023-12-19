@@ -1,5 +1,5 @@
 from flask import (Flask, render_template, make_response, url_for, request,
-                   redirect, flash, session, send_from_directory, jsonify)
+                   redirect, flash, session, send_from_directory, jsonify, abort)
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 app = Flask(__name__)
@@ -450,6 +450,28 @@ def remove_expired_posts_job():
 
 # Start the scheduler
 scheduler.start()
+
+@app.route('/delete_post/<int:post_id>', methods=['POST'])
+def delete_post(post_id):
+    # Check if the user is logged in
+    if not session.get('logged_in', False):
+        abort(401)  # Unauthorized
+
+    # Get the user's email from the session
+    user_email = session.get('username')
+
+    # Check if the user is the one who posted the specified post_id
+    conn = dbi.connect()
+    post_data = helper.get_post_info(conn, post_id)
+    
+    if not post_data or post_data['user_email'] != user_email:
+        abort(403)  # Forbidden
+
+    # Delete the post and associated comments and images
+    helper.remove_post(conn, post_id)
+
+    flash(f"Post {post_id} has been deleted.")
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     import sys, os
