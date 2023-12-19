@@ -208,7 +208,7 @@ def remove_post(conn, post_id):
     # Delete comments for the post
     curs.execute("DELETE FROM comments WHERE post_id = %s", [post_id])
 
-    # Delete images for the post (Assuming your picture table has a foreign key constraint)
+    # Delete images for the post
     curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
 
     # Delete the post
