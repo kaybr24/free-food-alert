@@ -1,11 +1,6 @@
 from flask import (Flask, render_template, make_response, url_for, request,
-<<<<<<< HEAD
                    redirect, flash, session, send_from_directory, jsonify)
 # from apscheduler.schedulers.background import BackgroundScheduler
-=======
-                   redirect, flash, session, send_from_directory, jsonify, abort)
-from apscheduler.schedulers.background import BackgroundScheduler
->>>>>>> d6f0b7fdf9415872b3e39fb326c1154df59adc59
 from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
@@ -58,20 +53,17 @@ def index():
         post_id = post.get('post_id')
         if post_id:
             post_comments = helper.get_comments_for_post(conn, post_id)
+            #print(post_comments)
             comments[post_id] = post_comments
             # if there is an image to be found
             picIDs = helper.get_images_for_post(conn, post_id)
             if picIDs:
                 for image in picIDs:
-                    image_id = image.get("image_id")
-                    filetype = image.get("filetype")
-                    picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
-                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName)
+                    file = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
                     pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName)
-                    #send_from_directory(app.config['UPLOADS'],row['filename'])
+                    #send_from_directory(app.config['UPLOAD_FOLDER'],row['filename'])
     print(pictures) 
-    #print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE")
-    #print(comments)
+    print(comments)
 
     ## create time since posted tags
     for post in all_posts:
@@ -87,8 +79,8 @@ def index():
     ######################################################      DELETE THIS for key in session before submitting
     for key in session:
         print(key, session.get(key))
-    #print(file)
-    return render_template('main.html',title='Free Food Alert', comments = comments, search_results=all_posts, ratedGuides=ratings, cookie=session, img=pictures)
+    return render_template('main.html',title='Free Food Alert', comments=comments, search_results=all_posts, 
+                            ratedGuides=ratings, cookie=session, img=pictures)
 
 @app.route('/rate-post/', methods=['GET', 'POST'])
 def rate_post():
@@ -303,18 +295,14 @@ def user_profile():
             picIDs = helper.get_images_for_post(conn, post_id)
             if picIDs:
                 for image in picIDs:
-                    print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>HERE!")
                     image_id = image.get("image_id")
                     filetype = image.get("filetype")
                     picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
-                    print(f"post {post_id} has a pic named {picName}")
-                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName) #url_for('data/uploads/', filename='/Image/27_7.jpg')
-                    pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName) # do I need to specify the image type?
-                    #send_from_directory(app.config['UPLOADS'],row['filename'])
-                print(pictures) 
-                #print(url_for('static', filename='/Image/GP.png'))
+                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName)
+                    pictures[post_id] = file
+    print(pictures) 
     print("!!!!!!!!!!!!!!!!!!!!!")
-    #print(comments)
+
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
@@ -375,7 +363,7 @@ def login():
             return redirect(url_for('index'))
     
 
-@app.route('/add_comment', methods=['POST'])
+@app.route('/add_comment/', methods=['POST'])
 def add_comment():
     if request.method == 'POST':
         data = request.form
@@ -401,13 +389,32 @@ def add_comment():
 
 @app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
 def edit_post(post_id):
+    # confirm they are logged in
+    user_email = session.get('uid', False)
+    if not user_email:
+        flash("You must be logged in to edit a post")
+        return redirect(url_for('login'))
+
     # Get the post data based on post_id
     conn = dbi.connect()
     post_data = helper.get_post_info(conn, post_id)
-    user_email = session.get('username')
 
+    # confirm that this post exists and belongs to the user
     if not post_data:
-        return "Post not found."
+        flash(f"Post {post_id} not found.")
+        return redirect(url_for('user_profile'))
+    elif user_email != post_data.get("user_email"):
+        flash(f"You can not edit another Food Guide's post")
+
+    # retrieve existing image, if any
+    conn = dbi.connect()
+    image = helper.get_images_for_post(conn, post_id)
+    if image: # exists
+        # only use one image
+        image = image[0]
+        #print(f"Image should be a dictionary: {type(image)}")
+        imageName = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
+        post_data['image_url'] = imageName
 
     if request.method == 'GET':
         return render_template('edit_post.html', title='Edit Post', post=post_data, cookie=session, 
@@ -415,44 +422,32 @@ def edit_post(post_id):
 
     elif request.method == 'POST':
         # Update the post with the new data
-        conn = dbi.connect()
         updated_description = request.form['food_description']
         updated_allergens = request.form.getlist('allergens')  
         updated_expiration_date = request.form['expiration_date']
         updated_building = request.form['building']
         updated_room_number = request.form['room_number']
 
-        # helper.update_post(
-        #     conn,
-        #     post_id,
-        #     updated_description,
-        #     updated_allergens,
-        #     updated_expiration_date,
-        #     updated_building,
-        #     updated_room_number,
-        # )  
-        new_image = request.files['food_image'] if 'food_image' in request.files else None
-        image_filename = None
-
-        if new_image and new_image.filename != "":
-            filename = secure_filename(f"{post_id}_1.{new_image.filename.split('.')[-1]}")
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            new_image.save(filepath)
-            image_filename = filename
-
-        # Update the post with the new image information
-        helper.update_post_with_image(
-            conn,
+        # Update the post contents
+        conn2 = dbi.connect() # could this fix the "lock timeout exceeded"?
+        helper.update_post(
+            conn2,
             post_id,
             updated_description,
             updated_allergens,
             updated_expiration_date,
             updated_building,
             updated_room_number,
-            image_filename, 
-            user_email
-        )
+        )  
 
+        # Update the image, if any
+        new_image = request.files['food_image'] if 'food_image' in request.files else None
+        if new_image and new_image.filename == "": # empty upload
+            flash("No file selected")
+        if new_image and helper.allowed_file(new_image.filename): # file type is legal
+            Fname = helper.replace_image(conn, user_email, post_id, new_image, app.config['UPLOAD_FOLDER'])
+            if Fname:
+                flash(f"You updated the image for your post: {updated_description[:20]}...")
         return redirect(url_for('user_profile'))
 
 
@@ -495,7 +490,7 @@ def delete_post(post_id):
         abort(403)  # Forbidden
 
     # Delete the post and associated comments and images
-    helper.remove_post(conn, post_id)
+    helper.remove_post(conn, post_id, app.config['UPLOAD_FOLDER'])
 
     flash(f"Post {post_id} has been deleted.")
     return redirect(url_for('index'))
