@@ -1,6 +1,9 @@
 ## some helper functions
 import cs304dbi as dbi
 from datetime import datetime, timedelta
+import os
+import insert
+from werkzeug.utils import secure_filename
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 def allowed_file(filename):
@@ -167,7 +170,10 @@ def get_comments_for_post(conn, post_id):
     '''
     curs = dbi.dict_cursor(conn)
     # atomic read should be thread-safe
-    query = "SELECT 'comment_id', 'post_id', 'user_email', 'comment', 'date' FROM comments WHERE post_id=%s ORDER BY date DESC"
+    query = """
+        SELECT `comment_id`, `post_id`, `user_email`, `comment`, `date` 
+        FROM comments WHERE post_id=%s ORDER BY date DESC
+        """
     curs.execute(query, [post_id])
     return curs.fetchall()
 
@@ -177,22 +183,37 @@ def get_images_for_post(conn, post_id):
     '''
     curs = dbi.dict_cursor(conn)
     # atomic read should be thread-safe
-    query = "SELECT image_id, filetype FROM picture WHERE post_id = %s"
+    query = "SELECT image_id, filetype, post_id FROM picture WHERE post_id = %s"
     curs.execute(query, [post_id])
     return curs.fetchall()
 
+def construct_file_name(image, upload_folder):
+    """
+    given an (imageid, filetype) dictionary, constructs image file name
+    """
+    post_id = image.get("post_id")
+    image_id = image.get("image_id")
+    filetype = image.get("filetype")
+    picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
+    file = os.path.join(upload_folder, picName)
+    return file
+
+
 def get_post_info(conn, post_id):
     '''
-    gets all information for a post
+    gets all information for a post, returns as a dictionary
     '''
     curs = dbi.dict_cursor(conn)
-    query = "SELECT * from post WHERE post_id = %s"
+    query = """
+    SELECT post_id, user_email, description, post_date, expiration_date, location, building, allergens 
+    from post WHERE post_id = %s
+    """
     curs.execute(query, [post_id])
     return curs.fetchone()
 
 def update_post(conn, post_id, updated_description, updated_allergens, updated_expiration_date, updated_building,updated_room_number):
     '''
-    update the post of the user
+    update the post of the user, no change to the image
     '''
     curs = conn.cursor()
     query = """
@@ -208,11 +229,48 @@ def update_post(conn, post_id, updated_description, updated_allergens, updated_e
     allergens_str = ",".join(updated_allergens)
 
    
-    curs.execute(query, (updated_description, allergens_str, updated_expiration_date, updated_building, updated_room_number, post_id))
+    curs.execute(query, (updated_description, allergens_str, updated_expiration_date, updated_building, 
+                updated_room_number, post_id))
 
     conn.commit()
 
-def remove_post(conn, post_id):
+
+def replace_image(conn, user_email, post_id, new_image, upload_folder):
+    """
+    Given an authenticated image, replace the old image with this one
+    Returns new filename
+    """
+    # if there was a file and it has a legal name
+    if new_image and allowed_file(new_image.filename): # duplicate line in case a hacker calls this function
+        # remove old image(s) from uploads folder, if any
+        picIDs = get_images_for_post(conn, post_id)
+        for image in picIDs:
+            file = construct_file_name(image, upload_folder)
+            try:
+                os.remove(file)
+            except:
+                print(f"File {file} NOT FOUND")
+
+        # remove old image from the picture table, if ant
+        curs = dbi.dict_cursor(conn)
+        curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
+
+        # insert new image into the picture table
+        filetype = new_image.filename.split('.')[-1]
+        print(f"new image file type is {filetype}")
+        image_id = insert.insert_image(conn, user_email, post_id, filetype)
+        
+        # save image to uploads file
+        filename = secure_filename(f"{post_id}_{image_id}.{filetype}")
+        filepath = os.path.join(upload_folder, filename)
+        new_image.save(filepath)
+        print(f"***IMAGE SAVED TO {filepath}")
+        return filename
+    else:
+        print("ERROR: this function should not be called on unverified files")
+            
+
+def remove_post(conn, post_id, upload_folder):
     """
     Remove a post and associated comments and images from the database.
     """
@@ -222,6 +280,14 @@ def remove_post(conn, post_id):
     curs.execute("DELETE FROM comments WHERE post_id = %s", [post_id])
 
     # Delete images for the post
+    picIDs = get_images_for_post(conn, post_id)
+    print(picIDs)
+    if picIDs:
+        for image in picIDs:
+            file = construct_file_name(image, upload_folder)
+            os.remove(file)
+
+    # delete image ids for the post
     curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
 
     # Delete the post
@@ -230,58 +296,48 @@ def remove_post(conn, post_id):
     conn.commit()
 
 
-# def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, room_number, filename):
+
+# def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
+#     '''
+#     Update a post with new information, and delete picture from table
+#     '''
 #     curs = dbi.dict_cursor(conn)
+#     allergens_str = ",".join(allergens)
 #     query = """
 #         UPDATE post
-#         SET description=%s, allergens=%s, expiration_date=%s, building=%s, room_number=%s, image_filename=%s
+#         SET description=%s, allergens=%s, expiration_date=%s, building=%s, location=%s
 #         WHERE post_id=%s
 #     """
-#     curs.execute(query, (description, allergens, expiration_date, building, room_number, filename, post_id))
+#     curs.execute(query, (description, allergens_str, expiration_date, building, location, post_id))
+    
+#     # Delete the existing image associated with the post in the picture table
+#     delete_query = """
+#         DELETE FROM picture
+#         WHERE post_id = %s
+#     """
+#     curs.execute(delete_query, (post_id,))
+#     print("******************")
+#     print(post_id)
 #     conn.commit()
-
-def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
-    '''
-    Update a post with new information, and delete picture from table
-    '''
-    curs = dbi.dict_cursor(conn)
-    allergens_str = ",".join(allergens)
-    query = """
-        UPDATE post
-        SET description=%s, allergens=%s, expiration_date=%s, building=%s, location=%s
-        WHERE post_id=%s
-    """
-    curs.execute(query, (description, allergens_str, expiration_date, building, location, post_id))
     
-    # Delete the existing image associated with the post in the picture table
-    delete_query = """
-        DELETE FROM picture
-        WHERE post_id = %s
-    """
-    curs.execute(delete_query, (post_id,))
-    print("******************")
-    print(post_id)
-    conn.commit()
-    
-    # Insert the new image associated with the post
-    insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email)
+#     # Insert the new image associated with the post
+#     insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email)
 
 
 
-
-def insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
-    '''
-    Update the picture table with image
-    '''
-    curs = dbi.dict_cursor(conn)
-    insert_query = """
-        INSERT INTO picture (user_email, post_id, filetype)
-        VALUES (%s, %s, %s)
-    """
-    if image_filename:
-        parts = image_filename.split("_")
-        curs.execute(insert_query, (user_email, post_id, 'jpg'))  # only using jpg for now
-        conn.commit()
+# def insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
+#     '''
+#     Update the picture table with image
+#     '''
+#     curs = dbi.dict_cursor(conn)
+#     insert_query = """
+#         INSERT INTO picture (user_email, post_id, filetype)
+#         VALUES (%s, %s, %s)
+#     """
+#     if image_filename:
+#         parts = image_filename.split("_")
+#         curs.execute(insert_query, (user_email, post_id, 'jpg'))  # only using jpg for now
+#         conn.commit()
     
 
 if __name__ == '__main__':
@@ -289,11 +345,16 @@ if __name__ == '__main__':
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     conn = dbi.connect()
+    # testing remove post
+    upload = 'static/uploads/' 
+    #remove_post(conn, 41, upload)
+    # find type of fetchall
+    pics = get_images_for_post(conn, 38)
+    print(type(pics), len(pics), pics)
     # testing find_post_age()
     time = datetime(2023, 10, 23)
     print(find_post_age(time))
     # testing find_guide_ratings()
+    print("DISPLAY average rating, number of ratings for each rated guide:")
     print(find_guide_ratings(conn))
     print(find_guide_ratings(conn, 'kb102'))
-    #print(display_posts(conn))
-    print(get_image(conn, 3))

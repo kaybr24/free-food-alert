@@ -42,7 +42,7 @@
     <!-- Expiration Date -->
     <h2>Expiration Date:</h2>
     <label for="expiration_date">Date and Time:</label>
-    <input type="datetime-local" id="expiration_date" name="expiration_date" required value="{{ post.expiration_date }}">
+    <input type="date" id="expiration_date" name="expiration_date" value="{{ post.expiration_date }}" required>
     <br>
 
 
@@ -62,23 +62,18 @@
     <label for="room_number">Room number:</label>
     <input type="text" id="room_number" name="room_number" required value="{{ post.location }}">
     <br>
-<!-- 
-    Picture(s) of the Food
-    <h2>Picture of the Food (Optional):</h2>
-    <label for="food_image">Upload image:</label>
-    <input type="file" id="food_image" name="food_image" accept="image/*">
-    <br> -->
+
     <!-- Picture(s) of the Food -->
     <h2>Picture of the Food (Optional):</h2>
     <!-- Existing Image -->
+    {% if post.get("image_url") %}
     <h2>Existing Image:</h2>
-    <img src="{{ existing_image_url }}" alt="Existing Image" width="200">
+    <img src="{{ post.image_url }}" alt="Existing Image" width="200">
     <br>
-    <label for="food_image">Upload new image:</label>
+    {% endif %}
+    <label for="food_image">Upload replacement image:</label>
     <input type="file" id="food_image" name="food_image" accept="image/*">
     <br>
-
-
 
     <!-- Submit Button -->
     <input type="submit" value="Save Changes">

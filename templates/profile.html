@@ -46,8 +46,8 @@
   {% if cookie.get('logged_in') %}
   <br><br>
   <div class="comments">
-      <h3>Comments:</h3>
       {% if comments.get(post.post_id) %}
+          <h3>Comments:</h3>
           {% for comment in comments[post.post_id] %}
               <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
           {% endfor %}
