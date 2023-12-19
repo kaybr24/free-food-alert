@@ -68,7 +68,7 @@
     <!-- Existing Image -->
     {% if post.get("image_url") %}
     <h2>Existing Image:</h2>
-    <img src="{{ post.image_url }}" alt="Existing Image" width="200">
+    <img src="../{{ post.image_url }}" alt="Existing Image" width="200">
     <br>
     {% endif %}
     <label for="food_image">Upload replacement image:</label>

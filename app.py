@@ -72,15 +72,27 @@ def index():
             post['age'] = helper.find_post_age(post['post_date'])
         else:
             post['age'] = ''
+
     # customize page based on login status
     if not session.get('logged_in', False): # if not logged in
         session['logged_in'] = False
-    print('**********************************')
+    
+    # customize page based on which posts were rated by this user
+    uid = session.get("uid", False)
+    if uid: # if logged in
+        conn = dbi.connect()
+        rated_posts = helper.select_user_ratings(conn, uid)
+    else:
+        rated_posts = {}
+
     ######################################################      DELETE THIS for key in session before submitting
+    print('**********************************')
     for key in session:
         print(key, session.get(key))
+    #####################################################
+
     return render_template('main.html',title='Free Food Alert', comments=comments, search_results=all_posts, 
-                            ratedGuides=ratings, cookie=session, img=pictures)
+                            ratedGuides=ratings, cookie=session, img=pictures, rated=rated_posts)
 
 @app.route('/rate-post/', methods=['GET', 'POST'])
 def rate_post():
@@ -246,7 +258,7 @@ def registration():
         
 
 
-@app.route('/become_food_guide', methods=['POST'])
+@app.route('/become_food_guide/', methods=['POST'])
 def become_food_guide():
     '''
     Allow a user to become a food guide and make posts.
@@ -265,7 +277,7 @@ def become_food_guide():
     return redirect(url_for('user_profile'))
 
 
-@app.route('/user_profile')
+@app.route('/user_profile/')
 def user_profile():
     '''
     Gets user information for a profile page
@@ -279,8 +291,12 @@ def user_profile():
     # Get user data from the database
     conn = dbi.connect()
     user_data = profile.get_user_info(conn, user_email)
+    # active post count
     active_post_count = insert.get_active_user_post_count(conn, user_email)
     user_data["active_posts"] = active_post_count
+    # historical post count
+    if not user_data.get("post_count", False):
+        user_data["post_count"] = 0
     all_posts = profile.get_all_posts(conn, user_email)
     ratings = helper.find_guide_ratings(conn)
 
@@ -295,13 +311,8 @@ def user_profile():
             picIDs = helper.get_images_for_post(conn, post_id)
             if picIDs:
                 for image in picIDs:
-                    image_id = image.get("image_id")
-                    filetype = image.get("filetype")
-                    picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
-                    file = os.path.join(app.config['UPLOAD_FOLDER'], picName)
+                    file = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
                     pictures[post_id] = file
-    print(pictures) 
-    print("!!!!!!!!!!!!!!!!!!!!!")
 
     ## create time since posted tags
     for post in all_posts:
@@ -318,7 +329,8 @@ def user_profile():
     if not user_data:
         return "User not found."
 
-    return render_template('profile.html', title='View Profile', cookie=session, user=user_data, posts=all_posts, comments=comments, ratedGuides=ratings, img=pictures)
+    return render_template('profile.html', title='View Profile', cookie=session, user=user_data, posts=all_posts, 
+                            comments=comments, ratedGuides=ratings, img=pictures)
 
 
 
@@ -341,7 +353,6 @@ def login():
         user_info = profile.validate_user(conn, user_email, password)
         if user_info: # the user exists
             # Set user_email in the session
-            # session['user_email'] = user_email
             stored = user_info['password']
             hashed2 = bcrypt.hashpw(password.encode('utf-8'),
                             stored.encode('utf-8'))
@@ -387,8 +398,38 @@ def add_comment():
         flash('Comment added successfully.')
         return redirect(url_for('index'))
 
+@app.route('/remove-post/', methods=['POST'])
+def remove_post():
+    """
+    permantly delete the given post
+    """
+    # confirm they are logged in
+    user_email = session.get('uid', False)
+    if not user_email:
+        flash("You must be logged in to delete a post")
+        return redirect(url_for('login'))
+
+    # confirm that this belongs to the user
+    post_id = request.form.get("post_id")
+    conn = dbi.connect()
+    post_data = helper.get_post_info(conn, post_id)
+    if user_email != post_data.get("user_email"):
+        flash(f"You can not delete another Food Guide's post")
+        return redirect(url_for('index'))
+
+    # Delete post
+    helper.remove_post(conn, post_id, app.config["UPLOAD_FOLDER"])
+    desc = post_data.get("description")
+    day = post_data.get("post_date")
+    flash(f"Successfully deleted post {desc} from {day}")
+    return redirect(url_for('user_profile'))
+    
+
 @app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
 def edit_post(post_id):
+    """
+    Allow user to edit values in the given post
+    """
     # confirm they are logged in
     user_email = session.get('uid', False)
     if not user_email:

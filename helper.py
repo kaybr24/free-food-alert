@@ -27,15 +27,6 @@ def display_posts(conn):
     
     curs.execute(query, (current_date,))
     posts = curs.fetchall()
-
-
-    # curs.execute("""
-    #     select `post_id`, `user_email`, `description`, `post_date`, 
-    #     date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
-    #     from post
-    #     order by `post_date` desc;
-    # """)
-    # posts = curs.fetchall()
     return posts
 
 def find_guide_ratings(conn, specific_guide=None):
@@ -88,7 +79,7 @@ def insert_rating(conn, rating):
     result = curs.execute(query, values)
     conn.commit()
     # result is 1 if rating was inserted, and 2 if rating was updated
-    # not sure why, but I noticed this output behaviour
+    # not sure why this happens, but this output behaviour lets me distiguish between inserts and updates
     if result == 2:
         return f"You updated your rating of {rating.get('guide')}'s post to be {rating.get('stars')} out of 5 stars"
     else:
@@ -158,10 +149,6 @@ def insert_comment(conn, post_id, user_email, comment):
     curs.execute('''insert into comments(post_id, user_email, comment, date)
                     values(%s, %s, %s, %s)''',
                     [post_id, user_email, comment, commentDate])
-
-    # query = "INSERT INTO comments (post_id, user_email, comment, date) VALUES ((%s, %s, %s, %s)"
-    # values=[post_id, user_email, comment, commentDate]
-    # curs.execute(query, values)
     conn.commit()
 
 def get_comments_for_post(conn, post_id):
@@ -228,7 +215,6 @@ def update_post(conn, post_id, updated_description, updated_allergens, updated_e
 
     allergens_str = ",".join(updated_allergens)
 
-   
     curs.execute(query, (updated_description, allergens_str, updated_expiration_date, updated_building, 
                 updated_room_number, post_id))
 
@@ -290,61 +276,39 @@ def remove_post(conn, post_id, upload_folder):
     # delete image ids for the post
     curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
 
+    # delete ratings for the post:
+    curs.execute("""
+        DELETE FROM rating where post_id = %s
+    """, [post_id])
+
     # Delete the post
     curs.execute("DELETE FROM post WHERE post_id = %s", [post_id])
 
     conn.commit()
 
-
-
-# def update_post_with_image(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
-#     '''
-#     Update a post with new information, and delete picture from table
-#     '''
-#     curs = dbi.dict_cursor(conn)
-#     allergens_str = ",".join(allergens)
-#     query = """
-#         UPDATE post
-#         SET description=%s, allergens=%s, expiration_date=%s, building=%s, location=%s
-#         WHERE post_id=%s
-#     """
-#     curs.execute(query, (description, allergens_str, expiration_date, building, location, post_id))
-    
-#     # Delete the existing image associated with the post in the picture table
-#     delete_query = """
-#         DELETE FROM picture
-#         WHERE post_id = %s
-#     """
-#     curs.execute(delete_query, (post_id,))
-#     print("******************")
-#     print(post_id)
-#     conn.commit()
-    
-#     # Insert the new image associated with the post
-#     insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email)
-
-
-
-# def insert_image_update(conn, post_id, description, allergens, expiration_date, building, location, image_filename, user_email):
-#     '''
-#     Update the picture table with image
-#     '''
-#     curs = dbi.dict_cursor(conn)
-#     insert_query = """
-#         INSERT INTO picture (user_email, post_id, filetype)
-#         VALUES (%s, %s, %s)
-#     """
-#     if image_filename:
-#         parts = image_filename.split("_")
-#         curs.execute(insert_query, (user_email, post_id, 'jpg'))  # only using jpg for now
-#         conn.commit()
-    
+def select_user_ratings(conn, user_email):
+    """
+    To customize homepage based on which posts the user has rated
+    returns a dictionary of past ratings by this user
+    {post_id: rating, ...}
+    """
+    curs = dbi.dict_cursor(conn)
+    query = "SELECT post_id, rating FROM rating WHERE rater_email = %s"
+    curs.execute(query, [user_email])
+    ratings = curs.fetchall()
+    pairs = {}
+    for rating in ratings:
+        pairs[rating.get('post_id')] = rating.get('rating')
+    return pairs
 
 if __name__ == '__main__':
     db_to_use = 'wffa_db' 
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     conn = dbi.connect()
+    # testing select user ratings
+    ratings = select_user_ratings(conn, 'ck102')
+    print(ratings)
     # testing remove post
     upload = 'static/uploads/' 
     #remove_post(conn, 41, upload)
