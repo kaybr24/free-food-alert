@@ -16,6 +16,8 @@
         {% if img.get(post.post_id) %}
           <img src="{{ img.get(post.post_id) }}" alt="picture of {{ post.description }}" width="368" height="205">
           <br/>
+        {% else %}
+          <div>Currently No Image Available</div>
         {% endif %}
         <strong>{{ post.description }}</strong>
         <br>
