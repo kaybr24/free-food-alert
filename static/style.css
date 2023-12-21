@@ -223,3 +223,8 @@ nav button:hover, button:focus, nav a:hover, nav a:focus {
     color: #fff;
 }
 
+img {
+    width: 100%;
+    height: auto;
+}
+
