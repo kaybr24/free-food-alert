@@ -1,12 +1,12 @@
+====================== app.py =====================
 from flask import (Flask, render_template, make_response, url_for, request,
                    redirect, flash, session, send_from_directory, jsonify)
-from apscheduler.schedulers.background import BackgroundScheduler
+# from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.utils import secure_filename
 app = Flask(__name__)
 
 # one or the other of these. Defaults to MySQL (PyMySQL)
 # change comment characters to switch to SQLite
-
 import cs304dbi as dbi
 # import cs304dbi_sqlite3 as dbi
 
@@ -21,7 +21,13 @@ import information
 from datetime import datetime, timedelta
 
 # Initialize the scheduler for deleting the expired post
-scheduler = BackgroundScheduler()
+# scheduler = BackgroundScheduler()
+
+# File upload handling
+# I am using the static folder because there are no private images that shouldn't be viewed by everyone
+UPLOAD_FOLDER = 'static/uploads/' 
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024  # 3 MB
 
 app.secret_key = 'your secret here'
 # replace that with a random key
@@ -37,69 +43,89 @@ app.config['TRAP_BAD_REQUEST_ERRORS'] = True
 @app.route('/')
 def index(): 
     conn = dbi.connect()
-    helper.remove_expired_posts(conn)
+    # helper.remove_expired_posts(conn)
     all_posts = helper.display_posts(conn)
     ratings = helper.find_guide_ratings(conn)
 
     comments = {}
+    pictures = {}
     for post in all_posts:
         post_id = post.get('post_id')
         if post_id:
             post_comments = helper.get_comments_for_post(conn, post_id)
             comments[post_id] = post_comments
-    print("!!!!!!!!!!!!!!!!!!!!!")
-    print(comments)
+            
+            # if there is an image to be found
+            picIDs = helper.get_images_for_post(conn, post_id)
+            if picIDs:
+                for image in picIDs:
+                    file = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
+                    pictures[post_id] = file 
+
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
-            #date_posted = datetime.strptime(post['post_date'], '%y-%m-%d %H:%M:%S')
             post['age'] = helper.find_post_age(post['post_date'])
         else:
             post['age'] = ''
+
     # customize page based on login status
     if not session.get('logged_in', False): # if not logged in
-        session['logged_in'] = False
-    print('**********************************')
-    for key in session:
-        print(key, session.get(key))
-    return render_template('main.html',title='Free Food Alert', comments = comments, search_results=all_posts, ratedGuides=ratings, cookie=session)
+        session['logged_in'] = False # for easier comparisons in base.html
+    
+    # customize page based on which posts were rated by this user
+    uid = session.get("uid", False)
+    if uid: # if logged in
+        conn = dbi.connect()
+        rated_posts = helper.select_user_ratings(conn, uid)
+    else:
+        rated_posts = {}
+
+    return render_template('main.html',title='Free Food Alert', comments=comments, search_results=all_posts, 
+                            ratedGuides=ratings, cookie=session, img=pictures, rated=rated_posts)
 
 @app.route('/rate-post/', methods=['GET', 'POST'])
 def rate_post():
     """
     handle rating posts
-    TO-DO: make this into Ajax embedded in homepage
     """
-    if request.method == 'POST':
-        data=request.form
-        dbi.conf('wffa_db')
+    if request.method == 'GET':
+        # go back
+        return redirect(url_for('index'))
+    else: # request.method == 'POST':
+        data = request.form
         conn = dbi.connect()
         # check if they are rating themselves
         if data.get('guide') == data.get('user'):
             flash(f"You can not rate yourself")
             return redirect(url_for('index'))
         else:
-            helper.insert_rating(conn, data)
-            flash(f"You rated {data.get('guide')}'s post {data.get('stars')} out of 5 stars")
+            rate_msg = helper.insert_rating(conn, data)
+            flash(rate_msg)
             return redirect(url_for('index'))
-    else: # request.method == 'GET':
-        # go back
-        return redirect(url_for('index'))
 
-@app.route('/search/', methods = ['GET', 'POST'])
+@app.route('/search/', methods = ['GET'])
 def search_posts():
     '''
     Handles searching of posts based on specified search criteria
     '''
-    locations = information.locations
-    if not session.get('logged_in', False): # if not logged in
+    # if not logged in, for custom display in base.html
+    if not session.get('logged_in', False): 
         session['logged_in'] = False
-    possible_allergens = information.possible_allergens
 
-    if request.method == 'POST':
-        building = request.form.getlist('building')
-        allergens = request.form.getlist('allergens')
-        date_posted = request.form['date_posted']
+    # retireve information on valid search results
+    possible_allergens = information.possible_allergens
+    locations = information.locations
+
+    # user has not searched anything yet
+    if not request.args: 
+        return render_template('search_form.html', title='Filter Food Posts', cookie=session, 
+                                locations=locations, possible_allergens=possible_allergens)
+    # user wants to see search results
+    else: 
+        building = request.args.getlist('building')
+        allergens = request.args.getlist('allergens')
+        date_posted = request.args['date_posted']
 
         search_information = {'building': building, 
                                 'allergens': allergens,
@@ -107,16 +133,15 @@ def search_posts():
         conn = dbi.connect()
         data = search.search_for_post(conn, search_information)
         return render_template('search_results.html', title='Matching Food Posts', cookie=session, data=data)
-    return render_template('search_form.html', title='Filter Food Posts', cookie=session, locations=locations, possible_allergens=possible_allergens)
+    
 
-
-@app.route('/insert', methods=['GET', 'POST'])
+@app.route('/insert/', methods=['GET', 'POST'])
 def new_post():
     '''
     Create a new post with given information
     '''
     if not session.get('logged_in', False): # if not logged in
-        session['logged_in'] = False
+        session['logged_in'] = False # for easier comparison in base.html
         flash("You must be logged in to access this page")
         return redirect(url_for('user_profile'))
     conn = dbi.connect()
@@ -128,35 +153,48 @@ def new_post():
         flash("Please become a food guide ")
         return redirect(url_for('user_profile'))
 
-    if request.method == 'POST':
+    if request.method == 'GET':
+        # Render the form template for GET requests
+        return render_template('new_post_form.html', title='Insert New Food Posting', cookie=session, 
+                                possible_allergens=information.possible_allergens)
 
-        # Handle optional image upload
-        food_image = request.files['food_image'] if 'food_image' in request.files else None
+    elif request.method == 'POST':
 
         # Insert into the database
         post_date = datetime.now()
-        conn1 = dbi.connect()
-        insert.insert_post(conn1, post_date, request.form)
-        # insert.insert_post(conn, user_email, food_description, post_date, expiration_date, room_number, building, allergens)
-        # insert.insert_post(conn, user_email, food_name, food_description, post_date, allergens, expiration_date, building, room_number)
-        conn2 = dbi.connect()
-        all_posts = helper.display_posts(conn2)
+        conn = dbi.connect()
+        post_id = insert.insert_post(conn, post_date, request.form)
 
-        conn3 = dbi.connect()
-        insert.update_user_post_count(conn3, user_email)
+        # increment historical post count by 1
+        insert.update_user_historical_post_count(conn, user_email)
 
+        # Handle optional image upload - assume there is only one image
+        file = request.files['food_image'] if 'food_image' in request.files else None
+        if file and file.filename == "":
+            flash("No file selected")
+        if file and helper.allowed_file(file.filename): # if there was a file and it has a legal name
+            # insert image name into picture table
+            conn2 = dbi.connect()
+            filetype = file.filename.split('.')[-1]
+            image_id = insert.insert_image(conn2, user_email, post_id, filetype)
+
+            # save image to uploads file
+            filename = secure_filename(str(post_id) + "_" + str(image_id) + "." + filetype)
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            flash("You inserted a post with an image")
+        
         # Redirect to a success page or any other page
         return redirect(url_for('index'))
 
-    # Render the form template for GET requests
-    return render_template('new_post_form.html', title='Insert New Food Posting', cookie=session, possible_allergens=information.possible_allergens)
-
-@app.route('/registration', methods=['GET', 'POST'])
+@app.route('/registration/', methods=['GET', 'POST'])
 def registration():
     '''
     Register a new user and update the database
     '''
-    if request.method == 'POST':
+    if request.method == 'GET':
+        # Render the registration form for GET requests
+        return render_template('register_form.html', title='Register as a User', cookie=session, error=None)
+    else: # if request.method == 'POST':
         # Retrieve form data
         first_name = request.form['first_name']
         last_name = request.form['last_name']
@@ -202,15 +240,10 @@ def registration():
         else:
             flash("Registration failed. Please try again.")
             return render_template('register_form.html', title='Register as a User', cookie=session, error='Registration failed. Please try again.') # where should this show?
+        
 
-    else:
-        # Render the registration form for GET requests
-        return render_template('register_form.html', title='Register as a User', cookie=session, error=None)
 
-"""
-Lets users become food guides (ie, food guide column for user becomes a 1)
-"""
-@app.route('/become_food_guide', methods=['POST'])
+@app.route('/become_food_guide/', methods=['POST'])
 def become_food_guide():
     '''
     Allow a user to become a food guide and make posts.
@@ -229,7 +262,7 @@ def become_food_guide():
     return redirect(url_for('user_profile'))
 
 
-@app.route('/user_profile')
+@app.route('/user_profile/')
 def user_profile():
     '''
     Gets user information for a profile page
@@ -240,22 +273,61 @@ def user_profile():
     if not user_email: #not logged in
         return redirect(url_for('login'))
 
-    # Get user data from the database (replace with your logic)
+    # Get user data from the database
     conn = dbi.connect()
     user_data = profile.get_user_info(conn, user_email)
+    # active post count
+    active_post_count = insert.get_active_user_post_count(conn, user_email)
+    user_data["active_posts"] = active_post_count
+    # historical post count
+    if not user_data.get("post_count", False):
+        user_data["post_count"] = 0
+    all_posts = profile.get_all_posts(conn, user_email)
+    ratings = helper.find_guide_ratings(conn)
+
+    comments = {}
+    pictures = {}
+    for post in all_posts:
+        post_id = post.get('post_id')
+        if post_id:
+            post_comments = helper.get_comments_for_post(conn, post_id)
+            comments[post_id] = post_comments
+            # if there is an image to be found
+            picIDs = helper.get_images_for_post(conn, post_id)
+            if picIDs:
+                for image in picIDs:
+                    file = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
+                    pictures[post_id] = file
+
+    ## create time since posted tags
+    for post in all_posts:
+        if 'post_date' in post:
+            #date_posted = datetime.strptime(post['post_date'], '%y-%m-%d %H:%M:%S')
+            post['age'] = helper.find_post_age(post['post_date'])
+        else:
+            post['age'] = ''
+
+    # customize page based on login status
+    if not session.get('logged_in', False): # if not logged in
+        session['logged_in'] = False    
 
     if not user_data:
         return "User not found."
 
-    return render_template('profile.html', title='View Profile', cookie=session, user=user_data)
+    return render_template('profile.html', title='View Profile', cookie=session, user=user_data, posts=all_posts, 
+                            comments=comments, ratedGuides=ratings, img=pictures)
 
 
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login/', methods=['GET', 'POST'])
 def login():
     '''
     Allows users to login to the website.
     '''
+    if request.method == 'GET':
+        # Render the login form for GET requests
+        return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
+
     if request.method == 'POST':
         user_email = request.form['user_email']
         password = request.form['password']
@@ -265,7 +337,6 @@ def login():
         user_info = profile.validate_user(conn, user_email, password)
         if user_info: # the user exists
             # Set user_email in the session
-            # session['user_email'] = user_email
             stored = user_info['password']
             hashed2 = bcrypt.hashpw(password.encode('utf-8'),
                             stored.encode('utf-8'))
@@ -280,22 +351,17 @@ def login():
                 return redirect( url_for('user_profile') )
             else:
                 flash('login incorrect. Try again or join') #  incorrect password
-                return redirect(url_for('index'))
+                return redirect(url_for('login'))
 
         else: # incorrect username
             flash('login incorrect. Try again or join')
             return redirect(url_for('index'))
-    else:
-        # Render the login form for GET requests
-        print("***************recieved GET login request")
-        return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
+    
 
-@app.route('/add_comment', methods=['POST'])
+@app.route('/add_comment/', methods=['POST'])
 def add_comment():
     if request.method == 'POST':
         data = request.form
-        print('data')
-        print(data)
         post_id = data.get('post_id')
         user_email = session.get('username')
         comment_text = data.get('comment_text')
@@ -314,21 +380,144 @@ def add_comment():
         flash('Comment added successfully.')
         return redirect(url_for('index'))
 
+@app.route('/remove-post/', methods=['POST'])
+def remove_post():
+    """
+    permantly delete the given post
+    """
+    # confirm they are logged in
+    user_email = session.get('uid', False)
+    if not user_email:
+        flash("You must be logged in to delete a post")
+        return redirect(url_for('login'))
+
+    # confirm that this belongs to the user
+    post_id = request.form.get("post_id")
+    conn = dbi.connect()
+    post_data = helper.get_post_info(conn, post_id)
+    if user_email != post_data.get("user_email"):
+        flash(f"You can not delete another Food Guide's post")
+        return redirect(url_for('index'))
+
+    # Delete post
+    helper.remove_post(conn, post_id, app.config["UPLOAD_FOLDER"])
+    desc = post_data.get("description")
+    day = post_data.get("post_date")
+    flash(f"Successfully deleted post {desc} from {day}")
+    return redirect(url_for('user_profile'))
+    
+
+@app.route('/edit-post/<int:post_id>', methods=['GET', 'POST'])
+def edit_post(post_id):
+    """
+    Allow user to edit values in the given post
+    """
+    # confirm they are logged in
+    user_email = session.get('uid', False)
+    if not user_email:
+        flash("You must be logged in to edit a post")
+        return redirect(url_for('login'))
+
+    # Get the post data based on post_id
+    conn = dbi.connect()
+    post_data = helper.get_post_info(conn, post_id)
+    post_data['allergens'] = post_data.get('allergens', '').title().split(',')
+
+    # confirm that this post exists and belongs to the user
+    if not post_data:
+        flash(f"Post {post_id} not found.")
+        return redirect(url_for('user_profile'))
+    elif user_email != post_data.get("user_email"):
+        flash(f"You can not edit another Food Guide's post")
+
+    # retrieve existing image, if any
+    conn = dbi.connect()
+    image = helper.get_images_for_post(conn, post_id)
+    if image: # exists
+        # only use one image
+        image = image[0]
+        imageName = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
+        post_data['image_url'] = imageName
+
+    # render template with existing data
+    if request.method == 'GET':
+        return render_template('edit_post.html', title='Edit Post', post=post_data, cookie=session, 
+                possible_allergens=information.possible_allergens, locations=information.locations)
+
+    elif request.method == 'POST':
+        # Update the post with the new data
+        updated_description = request.form['food_description']
+        updated_allergens = request.form.getlist('allergens')  
+        updated_expiration_date = request.form['expiration_date']
+        updated_building = request.form['building']
+        updated_room_number = request.form['room_number']
+
+        # Update the post contents
+        conn2 = dbi.connect() # could this fix the "lock timeout exceeded"?
+        helper.update_post(
+            conn2,
+            post_id,
+            updated_description,
+            updated_allergens,
+            updated_expiration_date,
+            updated_building,
+            updated_room_number,
+        )  
+
+        # Update the image, if any
+        new_image = request.files['food_image'] if 'food_image' in request.files else None
+        if new_image and new_image.filename == "": # empty upload
+            flash("No file selected")
+        if new_image and helper.allowed_file(new_image.filename): # file type is legal
+            Fname = helper.replace_image(conn, user_email, post_id, new_image, app.config['UPLOAD_FOLDER'])
+            if Fname:
+                flash(f"You updated the image for your post: {updated_description[:20]}...")
+        return redirect(url_for('user_profile'))
+
+
 @app.route('/logout')
 def logout():
     session.clear()  # Clear all session variables
     flash('You have been logged out.')
     return redirect(url_for('index'))
 
-# Remove expired posts every 24 hours
-@scheduler.scheduled_job('interval', hours=24)
-def remove_expired_posts_job():
-    conn = dbi.connect()
-    helper.remove_expired_posts(conn)
-    print('Expired posts have been removed.')
+@app.route('/picfile')
+def picfile():
+    session.clear()  # Clear all session variables
+    flash('You have been logged out.')
+    return redirect(url_for('index'))
+
+# # Remove expired posts every 24 hours
+# @scheduler.scheduled_job('interval', hours=24)
+# def remove_expired_posts_job():
+#     conn = dbi.connect()
+#     helper.remove_expired_posts(conn)
+#     print('Expired posts have been removed.')
 
 # Start the scheduler
-scheduler.start()
+# scheduler.start()
+
+@app.route('/delete_post/<int:post_id>', methods=['POST'])
+def delete_post(post_id):
+    # Check if the user is logged in
+    if not session.get('logged_in', False):
+        abort(401)  # Unauthorized
+
+    # Get the user's email from the session
+    user_email = session.get('username')
+
+    # Check if the user is the one who posted the specified post_id
+    conn = dbi.connect()
+    post_data = helper.get_post_info(conn, post_id)
+    
+    if not post_data or post_data['user_email'] != user_email:
+        abort(403)  # Forbidden
+
+    # Delete the post and associated comments and images
+    helper.remove_post(conn, post_id, app.config['UPLOAD_FOLDER'])
+
+    flash(f"Post {post_id} has been deleted.")
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
     import sys, os
@@ -343,25 +532,41 @@ if __name__ == '__main__':
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     app.debug = True
-    app.run('0.0.0.0',port+1)
+    app.run('0.0.0.0',port)
+
+====================== helper.py =====================
 ## some helper functions
 import cs304dbi as dbi
 from datetime import datetime, timedelta
+import os
+import insert
+from werkzeug.utils import secure_filename
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def display_posts(conn):
     """
     returns a list of all active posts as dictionaries
     """
     curs = dbi.dict_cursor(conn)
-    # atomic reads should be thread-safe
-    curs.execute("""
-        select `post_id`, `user_email`, `description`, `post_date`, 
-        date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
-        from post
+    current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    
+    query = """
+        SELECT  `post_id`, `user_email`, `description`, `post_date`, 
+        `expiration_date` as 'expiration', `location`, `building`, `allergens`
+        FROM post
+        WHERE expiration_date >= %s
         order by `post_date` desc;
-    """)
+    """
+    
+    curs.execute(query, (current_date,))
     posts = curs.fetchall()
     return posts
+
+
 
 def find_guide_ratings(conn, specific_guide=None):
     '''
@@ -410,8 +615,14 @@ def insert_rating(conn, rating):
         rating.get('stars'),
         rating.get('stars')
         ]
-    curs.execute(query, values)
+    result = curs.execute(query, values)
     conn.commit()
+    # result is 1 if rating was inserted, and 2 if rating was updated
+    # not sure why this happens, but this output behaviour lets me distiguish between inserts and updates
+    if result == 2:
+        return f"You updated your rating of {rating.get('guide')}'s post to be {rating.get('stars')} out of 5 stars"
+    else:
+        return f"You rated {rating.get('guide')}'s post {rating.get('stars')} out of 5 stars"
 
 def find_post_age(post_date):
     """given the age of a post, return a (number, string) pair
@@ -451,20 +662,20 @@ def find_post_age(post_date):
         else:
             return (str(delta.seconds) + ' seconds')
 
-def remove_expired_posts(conn):
-    """
-    Remove expired posts from the database.
-    """
-    curs = dbi.dict_cursor(conn)
-    current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    query = """
-        DELETE FROM post
-        WHERE expiration_date < %s
-    """
-    #curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
-    # atomic delete should be thread-safe
-    curs.execute(query, [current_date])
-    conn.commit()
+# def remove_expired_posts(conn):
+#     """
+#     Remove expired posts from the database.
+#     """
+#     curs = dbi.dict_cursor(conn)
+#     current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#     query = """
+#         DELETE FROM post
+#         WHERE expiration_date < %s
+#     """
+#     #curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
+#     # atomic delete should be thread-safe
+#     curs.execute(query, [current_date])
+#     conn.commit()
     
 def insert_comment(conn, post_id, user_email, comment):
     '''
@@ -477,10 +688,6 @@ def insert_comment(conn, post_id, user_email, comment):
     curs.execute('''insert into comments(post_id, user_email, comment, date)
                     values(%s, %s, %s, %s)''',
                     [post_id, user_email, comment, commentDate])
-
-    # query = "INSERT INTO comments (post_id, user_email, comment, date) VALUES ((%s, %s, %s, %s)"
-    # values=[post_id, user_email, comment, commentDate]
-    # curs.execute(query, values)
     conn.commit()
 
 def get_comments_for_post(conn, post_id):
@@ -489,172 +696,174 @@ def get_comments_for_post(conn, post_id):
     '''
     curs = dbi.dict_cursor(conn)
     # atomic read should be thread-safe
-    query = "SELECT * FROM comments WHERE post_id=%s ORDER BY date DESC"
+    query = """
+        SELECT `comment_id`, `post_id`, `user_email`, `comment`, `date` 
+        FROM comments WHERE post_id=%s ORDER BY date DESC
+        """
     curs.execute(query, [post_id])
     return curs.fetchall()
 
+def get_images_for_post(conn, post_id):
+    '''
+    gets the ids of picture(s) for a post
+    '''
+    curs = dbi.dict_cursor(conn)
+    # atomic read should be thread-safe
+    query = "SELECT image_id, filetype, post_id FROM picture WHERE post_id = %s"
+    curs.execute(query, [post_id])
+    return curs.fetchall()
 
+def construct_file_name(image, upload_folder):
+    """
+    given an (imageid, filetype) dictionary, constructs image file name
+    """
+    post_id = image.get("post_id")
+    image_id = image.get("image_id")
+    filetype = image.get("filetype")
+    picName = str(post_id) + "_" + str(image_id) + "." + str(filetype)
+    file = os.path.join(upload_folder, picName)
+    return file
+
+
+def get_post_info(conn, post_id):
+    '''
+    gets all information for a post, returns as a dictionary
+    '''
+    curs = dbi.dict_cursor(conn)
+    query = """
+    SELECT post_id, user_email, description, post_date, expiration_date, location, building, allergens 
+    from post WHERE post_id = %s
+    """
+    curs.execute(query, [post_id])
+    return curs.fetchone()
+
+def update_post(conn, post_id, updated_description, updated_allergens, updated_expiration_date, updated_building,updated_room_number):
+    '''
+    update the post of the user, no change to the image
+    '''
+    curs = conn.cursor()
+    query = """
+        UPDATE post
+        SET description = %s,
+            allergens = %s,
+            expiration_date = %s,
+            building = %s,
+            location = %s
+        WHERE post_id = %s
+    """
+
+    allergens_str = ",".join(updated_allergens)
+
+    curs.execute(query, (updated_description, allergens_str, updated_expiration_date, updated_building, 
+                updated_room_number, post_id))
+
+    conn.commit()
+
+
+def replace_image(conn, user_email, post_id, new_image, upload_folder):
+    """
+    Given an authenticated image, replace the old image with this one
+    Returns new filename
+    """
+    # if there was a file and it has a legal name
+    if new_image and allowed_file(new_image.filename): # duplicate line in case a hacker calls this function
+        # remove old image(s) from uploads folder, if any
+        picIDs = get_images_for_post(conn, post_id)
+        for image in picIDs:
+            file = construct_file_name(image, upload_folder)
+            try:
+                os.remove(file)
+            except:
+                print(f"File {file} NOT FOUND")
+
+        # remove old image from the picture table, if ant
+        curs = dbi.dict_cursor(conn)
+        curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
+
+        # insert new image into the picture table
+        filetype = new_image.filename.split('.')[-1]
+        print(f"new image file type is {filetype}")
+        image_id = insert.insert_image(conn, user_email, post_id, filetype)
+        
+        # save image to uploads file
+        filename = secure_filename(f"{post_id}_{image_id}.{filetype}")
+        filepath = os.path.join(upload_folder, filename)
+        new_image.save(filepath)
+        print(f"***IMAGE SAVED TO {filepath}")
+        return filename
+    else:
+        print("ERROR: this function should not be called on unverified files")
+            
+
+def remove_post(conn, post_id, upload_folder):
+    """
+    Remove a post and associated comments and images from the database.
+    """
+    curs = dbi.dict_cursor(conn)
+
+    # Delete comments for the post
+    curs.execute("DELETE FROM comments WHERE post_id = %s", [post_id])
+
+    # Delete images for the post
+    picIDs = get_images_for_post(conn, post_id)
+    print(picIDs)
+    if picIDs:
+        for image in picIDs:
+            file = construct_file_name(image, upload_folder)
+            os.remove(file)
+
+    # delete image ids for the post
+    curs.execute("DELETE FROM picture WHERE post_id = %s", [post_id])
+
+    # delete ratings for the post:
+    curs.execute("""
+        DELETE FROM rating where post_id = %s
+    """, [post_id])
+
+    # Delete the post
+    curs.execute("DELETE FROM post WHERE post_id = %s", [post_id])
+
+    conn.commit()
+
+def select_user_ratings(conn, user_email):
+    """
+    To customize homepage based on which posts the user has rated
+    returns a dictionary of past ratings by this user
+    {post_id: rating, ...}
+    """
+    curs = dbi.dict_cursor(conn)
+    query = "SELECT post_id, rating FROM rating WHERE rater_email = %s"
+    curs.execute(query, [user_email])
+    ratings = curs.fetchall()
+    pairs = {}
+    for rating in ratings:
+        pairs[rating.get('post_id')] = rating.get('rating')
+    return pairs
 
 if __name__ == '__main__':
     db_to_use = 'wffa_db' 
     print('will connect to {}'.format(db_to_use))
     dbi.conf(db_to_use)
     conn = dbi.connect()
+    # testing select user ratings
+    ratings = select_user_ratings(conn, 'ck102')
+    print(ratings)
+    # testing remove post
+    upload = 'static/uploads/' 
+    #remove_post(conn, 41, upload)
+    # find type of fetchall
+    pics = get_images_for_post(conn, 38)
+    print(type(pics), len(pics), pics)
     # testing find_post_age()
     time = datetime(2023, 10, 23)
     print(find_post_age(time))
     # testing find_guide_ratings()
+    print("DISPLAY average rating, number of ratings for each rated guide:")
     print(find_guide_ratings(conn))
     print(find_guide_ratings(conn, 'kb102'))
-    #print(display_posts(conn))import cs304dbi as dbi
+
+====================== information.py =====================
 
-def insert_post(conn, post_date, information):
-    curs = dbi.dict_cursor(conn)
-    full_user_email = information['user_email']
-    user_email = full_user_email.split('@')[0]
-    # food_name = information['food_name']
-    food_description = information['food_description']
-    allergens = information.getlist('allergens')
-    
-    expiration_date = information['expiration_date']
-    building = information['building_dropdown']
-    room_number = information['room_number']
-
-
-    curs.execute('''insert into post(user_email, description, post_date, expiration_date, location, building, allergens)
-                    values(%s, %s, %s, %s, %s, %s, %s)''',
-                    [user_email, food_description, post_date, expiration_date, room_number, building, ','.join(allergens)])
-    conn.commit()
-
-def update_user_post_count(conn, user_email):
-    curs = conn.cursor()
-    query = "SELECT COUNT(*) FROM post WHERE user_email=%s"
-    curs.execute(query, (user_email,))
-    posts = curs.fetchone()[0]
-
-    update_post_count = "UPDATE user SET post_count = %s where user_email = %s"
-    curs.execute(update_post_count, (posts, user_email))
-
-    conn.commit()import cs304dbi as dbi
-
-def update_food_guide_status(conn, user_email):
-    curs = dbi.dict_cursor(conn)
-    # Update the user's food_guide status to 1
-    curs.execute("UPDATE user SET food_guide = 1 WHERE user_email = %s", [user_email])
-    conn.commit()
-
-def get_user_info(conn, user_email):
-    curs = dbi.dict_cursor(conn)
-    curs.execute("SELECT * FROM user WHERE user_email = %s", [user_email])
-    user_data = curs.fetchone()
-    return user_data
-
-def validate_user(conn, user_email, password):
-    curs = dbi.dict_cursor(conn)
-    curs.execute('''SELECT user_email, password
-                    from user where user_email = %s''', [user_email])
-    user = curs.fetchone()
-    return user
-
-# if __name__ == '__main__':
-#     db_to_use = 'wffa_db' 
-#     print('will connect to {}'.format(db_to_use))
-#     dbi.conf(db_to_use)
-#     conn = dbi.connect()
-#     result = validate_user(conn, 'rd100', '')
-#     print(result)
-#     if None:
-#         print("None is true")
-#     elif result:
-#         print("dictionary is true")
-#     else:
-#         print("Only True is true")#Kayley's search file with queries 
-import cs304dbi as dbi
-from datetime import datetime
-
-legalAllergens =['soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame']
-legalBuildings = ['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
-    'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
-    'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
-    'Collins Cinema', 'Continuing Education Office', 'Davis Hall', 'Davis Museum', 
-    'Davis Parking Facility', 'Day Care Center', 'Distribution Center', 'Dower House', 
-    'East Lodge', 'Fiske House', 'Founders Hall', 'Freeman Hall', 'French House - Carriage', 
-    'French House - Main', 'Golf House', 'Green Hall', 'Grounds', 'Hallowell House', 'Harambee House', 
-    'Hemlock', 'Homestead', 'Horton House', 'Instead', 'Jewett Art Center', 'Keohane Sports Center', 
-    'Lake House', 'Library', 'Lulu Chow Wang Campus Center', 'Margaret Ferguson Greenhouses', 
-    'McAfee Hall', 'Motor Pool', 'Munger Hall', 'Nehoiden House', 'Observatory', 'Orchard Apts', 
-    'Pendleton Hall East', 'Pendleton Hall West', 'Physical Plant', 'Pomeroy Hall', 
-    "President's House", 'Ridgeway Apts', 'Schneider Center', 'Science Center', 'Service Building', 
-    'Severance Hall', 'Shafer Hall', 'Shakespeare', 'Shepard House', 'Simpson Hall', 'Simpson West', 
-    'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
-     'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
-     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House']
-
-def search_for_post(conn, searched_item):
-    """
-    Given a dictionary if items searched for by the user, 
-    finds if there are any posts with specified search
-    and returns the post.
-    """
-    curs = dbi.dict_cursor(conn)
-
-    query = "SELECT * FROM post WHERE"
-
-    if len(searched_item['building'])>0:
-        l = searched_item['building']
-        locations=tuple(x for x in l)
-        for place in locations:
-            if place not in legalBuildings: # data check against list of locations
-                print(place)
-                raise ValueError("illegal building")
-                return None
-        query += " building IN {}".format(locations).replace(',)', ')')
-    
-
-    if len(searched_item['allergens'])>0:
-        allergens = tuple(searched_item['allergens'])
-        print("**************************************************")
-        print(allergens)
-        if 'building' in query:
-            query += " AND"
-        for allergen in allergens:
-            if allergen not in legalAllergens: # see if in subset of allergens
-                raise ValueError('illegal allergen')
-                return None
-            if allergen != allergens[0]:
-                query += " AND"
-            query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
-
-    if searched_item['date_posted']:
-        formatted_date = datetime.strptime(searched_item['date_posted'], '%Y-%m-%d').strftime('%Y-%m-%d')
-
-        if 'building' in query or 'allergens' in query:
-            query += " AND post_date = '{}'".format(formatted_date)
-        else:
-            query += " post_date = '{}'".format(formatted_date)
-      
-    if query == "SELECT * FROM post WHERE":
-        query = "SELECT * from post"
-        
-    print(query)
-    curs.execute(query)
-
-    data = curs.fetchall()
-    return data
-
-if __name__ == '__main__':
-    db_to_use = 'wffa_db' 
-    print('will connect to {}'.format(db_to_use))
-    dbi.conf(db_to_use)
-    conn = dbi.connect()
-    if ("Bates Hall", "Tupelo Pool") not in legalBuildings: # data check against list of locations
-        print("success")
-    print(
-        ("Bates Hall") not in legalBuildings,
-        ("Bates Hall", "Tupelo Pool") not in legalBuildings,
-        ("Bates Hall", "Lulu Chow Wang Campus Center") not in legalBuildings,
-        ("Bates Hall",) not in legalBuildings
-    )
 
 locations=['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 'Beebe Hall', 'Billings', 'Boathouse', 
     'Campus Police Headquarters', 'Cazenove Hall','Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
@@ -671,10 +880,130 @@ locations=['Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hal
     'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
     'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House']
-possible_allergens = ['Soy', 'Peanuts', 'Dairy', 'Eggs', 'Shellfish', 'Nuts', 'Sesame', 'Gluten']import cs304dbi as dbi
+possible_allergens = ['Soy', 'Peanuts', 'Dairy', 'Eggs', 'Shellfish', 'Nuts', 'Sesame', 'Gluten']
+====================== insert.py =====================
+import cs304dbi as dbi
+from flask import flash
+
+def insert_post(conn, post_date, information):
+    """
+    Insert a new food post into the database, given post information. 
+    Returns the new post_id
+    """
+    curs = dbi.dict_cursor(conn)
+    full_user_email = information['user_email']
+    user_email = full_user_email.split('@')[0]
+    food_description = information['food_description']
+    allergens = information.getlist('allergens')
+    
+    expiration_date = information['expiration_date']
+    building = information['building_dropdown']
+    room_number = information['room_number']
+
+    # check if room number is an acceptable length
+    if len(room_number) > 30:
+        flash("Room numbers must be less than 30 characters long")
+        room_number = room_number[:30]            
+
+    curs.execute('''insert into post(user_email, description, post_date, expiration_date, location, building, allergens)
+                    values(%s, %s, %s, %s, %s, %s, %s)''',
+                    [user_email, food_description, post_date, expiration_date, room_number, building, ','.join(allergens)])
+    conn.commit()
+
+    curs.execute('''select last_insert_id()''')
+    return curs.fetchone().get('last_insert_id()')
+
+def get_active_user_post_count(conn, user_email):
+    """
+    Finds count of active posts made by user
+    """
+    curs = conn.cursor()
+    query = "SELECT COUNT(post_id) FROM post WHERE user_email=%s"
+    curs.execute(query, [user_email])
+    numPosts = curs.fetchone()[0]
+    return numPosts
+
+def update_user_historical_post_count(conn, user_email):
+    """
+    Updates the count of historical posts made by user
+    """
+    curs = conn.cursor()
+    query = "UPDATE user SET post_count = (post_count + 1) where user_email = %s"
+    curs.execute(query, (user_email))
+    conn.commit()
+
+def insert_image(conn, user_email, post_id, filetype):
+    """
+    insert the user_email, post_id, and a unique image id into picture table
+    """
+    # insert new image row
+    curs = conn.cursor()
+    query = """
+        INSERT INTO `picture`(user_email, post_id, filetype)
+        VALUES (%s, %s, %s);
+    """
+    curs.execute(query, [user_email, post_id, filetype])
+    conn.commit()
+    # find the image id
+    curs.execute("""
+        SELECT last_insert_id()
+    """)
+    return curs.fetchone()
+====================== profile.py =====================
+import cs304dbi as dbi
+
+def update_food_guide_status(conn, user_email):
+    """
+    Change food_guide status for the user specified by user_email from 0 to 1 
+    to make that user a food guide
+    """
+    curs = dbi.dict_cursor(conn)
+    # Update the user's food_guide status to 1
+    curs.execute("UPDATE user SET food_guide = 1 WHERE user_email = %s", [user_email])
+    conn.commit()
+
+def get_user_info(conn, user_email):
+    """
+    return all information from the user table as a dictionary 
+    for the user specified by user_email
+    """
+    curs = dbi.dict_cursor(conn)
+    query = """
+        SELECT user_email, name, join_date, password, food_guide, 
+        post_count FROM user WHERE user_email = %s
+    """
+    curs.execute(query, [user_email])
+    user_data = curs.fetchone()
+    return user_data
+
+def validate_user(conn, user_email, password):
+    """
+    Return the username and password from a user as a dictionary
+    for use in confirming login attempts
+    """
+    curs = dbi.dict_cursor(conn)
+    curs.execute('''SELECT user_email, password
+                    from user where user_email = %s''', [user_email])
+    user = curs.fetchone()
+    return user
+
+def get_all_posts(conn, user_email):
+    """
+    Return data from all active posts for a given user as a dictionary
+    """
+    curs = dbi.dict_cursor(conn)
+    curs.execute('''SELECT `post_id`, `user_email`, `description`, `post_date`, 
+        date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
+        from post where user_email = %s order by 'post_date' desc''', [user_email])
+    user_posts = curs.fetchall()
+    return user_posts
+
+====================== register.py =====================
+import cs304dbi as dbi
 
 
 def register_user(conn, full_name, wellesley_email, password, date):
+    """Registers a new user in the database."""
     curs = dbi.dict_cursor(conn)
     
     curs.execute("""
@@ -687,6 +1016,7 @@ def register_user(conn, full_name, wellesley_email, password, date):
     return True  # successfully registered
 
 def check_user_exists(conn, wellesley_email):
+    """Checks if a user with the given Wellesley College email exists in the database."""
     curs = dbi.dict_cursor(conn)
     # query = "SELECT * FROM users WHERE wellesley_email = %s", [wellesley_email]
     curs.execute('''SELECT * from user where user_email=%s ''', [wellesley_email])
@@ -695,6 +1025,92 @@ def check_user_exists(conn, wellesley_email):
     
     # If the result set is not empty, the user exists
     return len(result) > 0
+
+====================== search.py =====================
+import cs304dbi as dbi
+from datetime import datetime
+import information
+
+legalAllergens = set(['soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame'])
+legalBuildings = set(information.locations)
+
+def search_for_post(conn, searched_item):
+    """
+    Given a dictionary of items searched for by the user, 
+    finds if there are any posts with specified search
+    and returns the post.
+    """
+    curs = dbi.dict_cursor(conn)
+
+    query = """SELECT post_id, user_email, description, post_date, 
+            expiration_date, location, building, allergens 
+            FROM post WHERE"""
+
+    if len(searched_item['building'])>0:
+        l = searched_item['building']
+        locations=tuple(x for x in l)
+        for place in locations:
+            if place not in legalBuildings: # data check against list of locations
+                print(place)
+                raise ValueError("illegal building")
+                return None
+        query += " building IN {}".format(locations).replace(',)', ')')
+    
+
+    if len(searched_item['allergens'])>0:
+        allergens = [x.lower() for x in searched_item['allergens']]
+        print("**************************************************")
+        print(allergens)
+        if 'building IN' in query:
+            query += " AND"
+        # check that allergens are legal
+        if not set(allergens).issubset(legalAllergens):
+            print(set(allergens), legalAllergens)
+            raise ValueError('illegal allergen')
+            return None
+        # add to query
+        for allergen in allergens:
+            if allergen != allergens[0]:
+                query += " AND"
+            query += " (allergens not like '%{}%')".format(allergen) # this allergen is not listed
+
+    if searched_item['date_posted']:
+        #formatted_date = datetime.strptime(searched_item['date_posted'], '%Y-%m-%d').strftime('%Y-%m-%d')
+        formatted_date = searched_item['date_posted']
+
+        if 'building IN' in query or 'allergens not' in query:
+            query += " AND post_date >= '{}'".format(formatted_date)
+        else:
+            query += " post_date >= '{}'".format(formatted_date)
+      
+    if query[-5:] == "WHERE":
+        query = query[:-5] # remove "where" from query ending
+
+    query += " ORDER BY post_date desc" # put newer postings on top
+        
+    print(query)
+    curs.execute(query)
+
+    data = curs.fetchall()
+    return data
+
+if __name__ == '__main__':
+    db_to_use = 'wffa_db' 
+    print('will connect to {}'.format(db_to_use))
+    dbi.conf(db_to_use)
+    conn = dbi.connect()
+    if ("Bates Hall", "Tupelo Pool") not in legalBuildings: # data check against list of locations
+        print("success")
+    print ('gluten', not set(('gluten',)).issubset(legalAllergens))
+    print ('gluten, rice', not set(('gluten', 'rice',)).issubset(legalAllergens))
+    print ('rice', not set(('rice',)).issubset(legalAllergens))
+    # print(
+    #     ("Bates Hall") not in legalBuildings,
+    #     ("Bates Hall", "Tupelo Pool") not in legalBuildings,
+    #     ("Bates Hall", "Lulu Chow Wang Campus Center") not in legalBuildings,
+    #     ("Bates Hall",) not in legalBuildings
+    # )
+====================== templates/base.html =====================
 <!doctype html>
 <html lang='en'>
 <head>
@@ -748,6 +1164,8 @@ def check_user_exists(conn, wellesley_email):
   
 </body>
 </html>
+
+====================== templates/echo.html =====================
 {% extends "base.html" %}
 
 {% block head_stuff %}
@@ -758,7 +1176,92 @@ def check_user_exists(conn, wellesley_email):
 {% for key in data %}
 {{key, data.get(key)}}<br/>
 {% endfor %}
-{% endblock %}{% extends "base.html" %}
+{% endblock %}
+====================== templates/edit_post.html =====================
+{% extends "base.html" %}
+
+{% block head_stuff %}
+{% endblock %}
+      
+{% block nav %}
+<nav id ='navbar' class="navbar">
+  <ul class="nav-links">
+    <li><a href="{{url_for('index')}}">Home</a></li>
+    <li><a href="{{url_for('search_posts')}}">Search</a></li>
+    <li><a href="{{url_for('new_post')}}">Insert</a></li>
+    <li><a href="{{ url_for('user_profile') }}">Profile</a></li>
+  </ul>
+</nav>
+{% endblock %}
+
+
+{% block main_content %}
+  <h1>Edit Post</h1>
+    <form action="" method="post" enctype="multipart/form-data">
+
+    <!-- User email -->
+    <label for="user_email" aria-label="User Email"></label>
+    <input type="hidden" id="user_email" name="user_email" value="{{cookie.get('username')}}" required>
+    <br>
+
+    <!-- Food Item and Description -->
+    <h2>Food Item and Description:</h2>
+    <label for="food_description">Describe the food item:</label>
+    <textarea id="food_description" name="food_description" rows="4">{{ post.description }}</textarea>
+    <br>
+
+    <!-- Allergens -->
+    <h2>Allergens:</h2>
+    <label id="allergens" for="allergens">Allergens:</label><br>
+    {% for a in possible_allergens %}
+      <input type="checkbox" name="allergens" value="{{ a }}" id="{{ a }}" {% if a in post.allergens %}checked{% endif %}>
+      <label for="{{ a }}">{{ a }}</label><br>
+    {% endfor %}
+    <br>
+
+    <!-- Expiration Date -->
+    <h2>Expiration Date:</h2>
+    <label for="expiration_date">Date and Time:</label>
+    <input type="datetime-local" id="expiration_date" name="expiration_date" value="{{ post.expiration_date }}" required>
+    <br>
+
+    <!-- Building on campus -->
+    <h2>Building</h2>
+    <div class="location-menu">
+        <label for="building_dropdown">Building:</label>
+        <select id="building" name="building">
+          <option value="" disabled selected hidden>select building(s)</option>
+          {% for l in locations %}
+            <option value="{{ l }}" {% if l == post.building %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select><br>
+      </div>
+
+    <!-- Room location -->
+    <h2>Location:</h2>
+    <label for="room_number">Room number:</label>
+    <input type="text" id="room_number" name="room_number" required value="{{ post.location }}">
+    <br>
+
+    <!-- Picture(s) of the Food -->
+    <h2>Picture of the Food (Optional):</h2>
+    <!-- Existing Image -->
+    {% if post.get("image_url") %}
+    <h2>Existing Image:</h2>
+    <img src="../{{ post.image_url }}" alt="Existing Image" width="200">
+    <br>
+    {% endif %}
+    <label for="food_image">Upload replacement image:</label>
+    <input type="file" id="food_image" name="food_image" accept="image/*">
+    <br>
+
+    <!-- Submit Button -->
+    <input type="submit" value="Save Changes">
+  </form>
+{% endblock %}
+
+====================== templates/form_data.html =====================
+{% extends "base.html" %}
 
 {% block main_content %}
 <p>Click to <a href="{{ url_for('index') }}">return to the main page</a>.</p>
@@ -781,6 +1284,8 @@ def check_user_exists(conn, wellesley_email):
 </ul>
 
 {% endblock %}
+
+====================== templates/greet.html =====================
 {% extends "base.html" %}
 
 {% block main_content %}
@@ -794,6 +1299,8 @@ def check_user_exists(conn, wellesley_email):
 </form>
 
 {% endblock %}
+
+====================== templates/login.html =====================
 {% extends "base.html" %}
 
 {% block main_content %}
@@ -814,6 +1321,8 @@ def check_user_exists(conn, wellesley_email):
   </form>
 </div>
 {% endblock %}
+
+====================== templates/logout.html =====================
 {% extends "base.html" %}
 
 {% block main_content %}
@@ -821,86 +1330,115 @@ def check_user_exists(conn, wellesley_email):
   <form action="{{ url_for('logout') }}" method="get">
     <button type="submit">Logout</button>
   </form>
-{% endblock %}{% extends "base.html" %}
+{% endblock %}
+====================== templates/main.html =====================
+{% extends "base.html" %}
 
 {% block main_content %}
-<h1>Welcome to the Wellesley College Free Food Alert!</h1>
+  <h1>Welcome to the Wellesley College Free Food Alert!</h1>
 
-<p>Many events occur on Wellesley College's campus, oftentimes leaving behind free, excess food that students are not aware of. 
-    Furthermore, there currently exists no efficient and easy way for students to communicate with each other and spread awareness 
+  <p>Many events occur on Wellesley College's campus, oftentimes leaving behind free, excess food that students are not aware of.
+    Furthermore, there currently exists no efficient and easy way for students to communicate with each other and spread awareness
     about extra food. Our application Food Alert attempts to solve this problem by creating an easy and centralized way for students
     to post news about free food on campus. </p>
 
-<h2>Find free food on campus: </h2>
+  <h2>Find free food on campus: </h2>
 
-<div class="post-container">
-{% for post in search_results %}
-<div class="post">
-<!-- <pre> -->
-[picture goes here]<br/>
-<strong>{{post.description}}</strong>
-<br>
-<em>{{post.age}} ago</em>
-<br>
-Location: {{post.building}}, {{post.location}}
-<br>
-{% if (post.allergens) %}
-    Allergen Warning: contains {{post.allergens}}
-    <br>
-{% endif %}
-Posted by: {{post.user_email}}
-{% if ratedGuides.get(post.user_email, False) %}
-    , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
-{% endif %}
-<!-- </pre> -->
-{% if cookie.get('logged_in') %}
-<form method="post" action ="{{url_for('rate_post')}}">
-    <input type="hidden" name="user" value="{{cookie.get('username')}}">
-    <input type="hidden" name="guide" value="{{post.user_email}}">
-    <input type="hidden" name="postID" value="{{post.post_id}}">
-    <br/>
-    <fieldset>
-    <legend display:none> Rate this food post out of 5 stars </legend>
-    {% for star in range(1,6) %}
-    <label class="post-rating" style="font-weight: normal;">
-        {{star}} 
-        <input type="radio" name="stars" value="{{star}}">
-    </label>
+  <div class="post-container">
+    {% for post in search_results %}
+      <div class="post">
+        {% if img.get(post.post_id) %}
+          <img src="{{ img.get(post.post_id) }}" alt="picture of {{ post.description }}" width="368" height="205">
+          <br/>
+        {% else %}
+          <div>Currently No Image Available</div>
+        {% endif %}
+        <strong>{{ post.description }}</strong>
+        <br>
+        <em>{{ post.age }} ago</em>
+        <br>
+        Location: {{ post.building }}, {{ post.location }}
+        <br>
+        {% if (post.allergens) %}
+          Allergen Warning: contains {{ post.allergens }}
+          <br>
+        {% endif %}
+        Posted by: {{ post.user_email }}
+        {% if ratedGuides.get(post.user_email, False) %}
+          , who is rated {{ ratedGuides.get(post.user_email)[0] }} out of 5 stars ({{ ratedGuides.get(post.user_email)[1] }} ratings)
+        {% endif %}
+
+        {% if cookie.get('logged_in') %}
+          {% if post.user_email != cookie.get('username') %}
+            {% if rated.get(post.post_id) %} 
+            <br/><br>
+            <b>You previously rated this post {{rated.get(post.post_id)}} out of 5 stars.
+            Rate it again to change your rating:</b>
+            {% endif%}
+            <form method="post" action="{{ url_for('rate_post') }}">
+            <input type="hidden" name="user" value="{{ cookie.get('username') }}">
+            <input type="hidden" name="guide" value="{{ post.user_email }}">
+            <input type="hidden" name="postID" value="{{ post.post_id }}">
+            <br/>
+            <fieldset>
+              <legend display:none> Rate this food post out of 5 stars </legend>
+              {% for star in range(1,6) %}
+                <label class="post-rating" style="font-weight: normal;">
+                  {{ star }}
+                  <input type="radio" name="stars" value="{{ star }}">
+                </label>
+              {% endfor %}
+            </fieldset>
+            <input type="submit" value="rate this">
+          </form>
+          <br>
+          {% endif %}
+          <br>
+
+          <div class="comments">
+            {% if comments.get(post.post_id) %}
+              <h3>Comments:</h3>
+              {% for comment in comments[post.post_id] %}
+                <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <br>
+
+          <form method="post" action="{{ url_for('add_comment') }}">
+            <input type="hidden" name="post_id" value="{{ post.post_id }}">
+            <div class="textbox">
+              <label for="comment_text">Add a comment:</label>
+              <textarea name="comment_text" id="comment_text" placeholder="Add a comment" required></textarea>
+            </div>
+            <button type="submit">Add Comment</button>
+          </form>
+
+          {% if post.user_email == cookie.get('username') %}
+            <!-- Display delete and edit button only if the logged-in user is the owner of the post -->
+            <br>
+            <form method="get" action="{{ url_for('edit_post', post_id=post.post_id) }}">
+              <input type="submit" value="Edit">
+            </form>
+            <br>
+            <form method="post" action="{{ url_for('delete_post', post_id=post.post_id) }}" onsubmit="return confirm('Are you sure you want to delete this post?');">
+              <input type="submit" value="Delete">
+            </form>
+            <br>
+          {% endif %}
+        {% endif %}
+      </div>
     {% endfor %}
-    </fieldset>
-    <input type="submit" value="rate this">
-</form>
-<br><br>
-<div class="comments">
-    <h3>Comments:</h3>
-    {% if comments.get(post.post_id) %}
-        {% for comment in comments[post.post_id] %}
-            <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
-        {% endfor %}
-    {% endif %}
-</div>
-    <br>
-
-    <form method="post" action="{{url_for('add_comment')}}">
-        <input type="hidden" name="post_id" value="{{ post.post_id }}">
-        <div class="textbox">
-            <label for="comment_text">Add a comment:</label>
-            <textarea name="comment_text" id = "comment_text" placeholder="Add a comment" required></textarea>
-        </div>
-        <button type="submit">Add Comment</button>
-    </form>
-    
-
-
-{% endif %}
-</div>
-{% endfor %}
-</div>
+  </div>
 {% endblock %}
+
+====================== templates/new_post_form.html =====================
 {% extends "base.html" %}
 
 {% block head_stuff %}
 {% endblock %}
+
 
 {% block main_content %}
   <h1>Create a New Post</h1>
@@ -1031,18 +1569,19 @@ Posted by: {{post.user_email}}
     <input type="text" id="room_number" name="room_number" required>
     <br>
 
-    <!-- Picture(s) of the Food -->
-    <!-- not safe yet
-    <h2>Picture(s) of the Food (Optional):</h2>
-    <label for="food_image">Upload image:</label>
+    <!-- Picture of the Food -->
+    <h2>Picture of the Food (Optional):</h2>
+    <label for="food_image">Upload one image:</label>
     <input type="file" id="food_image" name="food_image" accept="image/*">
     <br>
-    -->
+
 
     <!-- Submit Button -->
     <input type="submit" value="Submit">
   </form>
 {% endblock %}
+
+====================== templates/profile.html =====================
 {% extends "base.html" %}
 
 {% block head_stuff %}
@@ -1053,7 +1592,8 @@ Posted by: {{post.user_email}}
 <p>Email: {{ user.user_email }}</p>
 <p>Name: {{ user.name }}</p>
 <p>Join Date: {{ user.join_date }}</p>
-<p>Post Count: {{ user.post_count }}</p>
+<p>Active Post Count: {{ user.active_posts }}</p>
+<p>Historical Post Count: {{ user.post_count }}</p>
 
 {% if user.food_guide != 1 %}
   <form action="{{ url_for('become_food_guide') }}" method="post">
@@ -1061,14 +1601,84 @@ Posted by: {{post.user_email}}
   </form>
 {% endif %}
 
-
 <form action="{{ url_for('logout') }}">
-<div class="button-format">
-  <button type="submit">Logout</button>
-</div>
+  <div class="button-format">
+    <button type="submit">Logout</button>
+  </div>
+</form>
+
+{% if user.food_guide == 1 %}
+  <p><strong>Your Active Posts:</strong></p>
+{% endif %}
+
+<div class="post-container">
+  
+  {% for post in posts %}
+  <div class="post">
+  {% if img.get(post.post_id) %}
+  <img src="../{{img.get(post.post_id)}}" alt="picture of {{post.description}}" width="368" height="205" >
+  <br/>
+  {% endif %}
+  <strong>{{post.description}}</strong>
+  <br>
+  <em>{{post.age}} ago</em>
+  <br/>
+  Location: {{post.building}}, {{post.location}}
+  <br>
+  {% if (post.allergens) %}
+      Allergen Warning: contains {{post.allergens}}
+      <br>
+  {% endif %}
+  Posted by: {{post.user_email}}
+  {% if ratedGuides.get(post.user_email, False) %}
+      , who is rated {{ratedGuides.get(post.user_email)[0]}} out of 5 stars ({{ratedGuides.get(post.user_email)[1]}} ratings)
+  {% endif %}
+  <!-- </pre> -->
+  {% if cookie.get('logged_in') %}
+  <br><br>
+  <div class="comments">
+      {% if comments.get(post.post_id) %}
+          <h3>Comments:</h3>
+          {% for comment in comments[post.post_id] %}
+              <p><strong>{{ comment.user_email }}:</strong> {{ comment.comment }}</p>
+          {% endfor %}
+      {% endif %}
+  </div>
+      <br>
+  
+      <form method="post" action="{{url_for('add_comment')}}">
+          <input type="hidden" name="post_id" value="{{ post.post_id }}">
+          <div class="textbox">
+              <label for="comment_text">Add a comment:</label>
+              <textarea name="comment_text" id = "comment_text" placeholder="Add a comment" required></textarea>
+          </div>
+          <button type="submit">Add Comment</button>
+      </form>
+
+      <br>
+      <!-- Edit Button -->
+      <form method="get" action="{{ url_for('edit_post', post_id=post.post_id) }}">
+        <button type="submit">Edit</button>
+      </form>
+
+      <!-- Delete Button -->
+      <form method="post" action="{{ url_for('remove_post')}}" onsubmit="return confirm('Are you sure you want to delete this post?');">
+        <label for="post_id" aria-label="Hidden Post ID"></label>
+        <input type="hidden" id="post_id" name="post_id" value="{{post.post_id}}" required>
+        <br>
+        <button type="submit">Delete</button>
+      </form>
+
+  
+  {% endif %}
+  </div>
+  {% endfor %}
+  </div>
 
 {% endblock %}
-  {% extends "base.html" %}
+  
+====================== templates/rate_post.html =====================
+{% extends "base.html" %}
 
 {% block head_stuff %}
 {% endblock %}
@@ -1099,7 +1709,9 @@ Posted by: {{post.user_email}}
     </label>
     <input type="submit" value="rate this" style="display: none;">
 </form>
-{% endblock %}{% extends "base.html" %}
+{% endblock %}
+====================== templates/register_form.html =====================
+{% extends "base.html" %}
 
 {% block head_stuff %}
 {% endblock %}
@@ -1177,22 +1789,8 @@ Posted by: {{post.user_email}}
   </div>
   </form>
 {% endblock %}
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel='stylesheet' href="{{url_for('static', filename = 'style.css')}}">
-
-    <title>Search</title>
-  
-    <style>
-        label, select, input {
-            margin-bottom: 50px; 
-        }
-    </style>
-
-</head> -->
+
+====================== templates/search_form.html =====================
 {% extends "base.html" %}
 
 {% block head_stuff %}
@@ -1201,7 +1799,7 @@ Posted by: {{post.user_email}}
 {% block main_content %}
 <body>
     <h1>Search for Food</h1>
-    <form method="post" action="{{ url_for('search_posts') }}">
+    <form method="get" action="{{ url_for('search_posts') }}">
         <div class="location-menu">
         <label for="building_dropdown">Building:</label>
         <select id = building name="building" >
@@ -1220,8 +1818,9 @@ Posted by: {{post.user_email}}
             {% endfor %}
        <br>
        
-        <label for="date_posted">Date Posted:</label>
-        <input type="text" id="date_posted" name="date_posted" placeholder="YYYY-MM-DD">
+       <!-- Post Date -->
+        <label for="date_posted">Posted on or after:</label>
+        <input type="date" id="date_posted" name="date_posted" placeholder="YYYY-MM-DD">
     </div>
     
     <div class="button-format">
@@ -1232,15 +1831,8 @@ Posted by: {{post.user_email}}
   
 </body>
 </html>
-{% endblock %}<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel='stylesheet' href="{{url_for('static', filename = 'style.css')}}">
-
-    <title>Search Results</title>
-</head> -->
+{% endblock %}
+====================== templates/search_results.html =====================
 {% extends "base.html" %}
 
 {% block head_stuff %}
@@ -1274,11 +1866,13 @@ Posted by: {{post.user_email}}
     {% endif %}
     <br>
   
-    <a href="/search">Back to Search</a>
+    <a href="{{url_for('search_posts')}}">Back to Search</a>
 
 </body>
 </html>
 {% endblock %}
+
+====================== templates/testform.html =====================
 {% extends "base.html" %}
 
 {% block main_content %}
@@ -1329,6 +1923,453 @@ Posted by: {{post.user_email}}
 </form>
 
 {% endblock %}
+
+====================== data/create_picfile.sql =====================
+USE wffa_db;
+
+DROP TABLE if exists `picture`;
+
+CREATE TABLE `picture` (
+  `user_email` varchar(30) not null COMMENT 'lasting responsibility identifier',
+  `post_id` integer COMMENT 'post id that images are associated with',
+  `image_id` integer not null AUTO_INCREMENT COMMENT 'unique id for image of food item',
+  `filetype` varchar(10) not null COMMENT 'file ending',
+  PRIMARY KEY (`image_id`),
+  foreign key (post_id) references `post`(post_id) 
+        on delete cascade on update cascade
+);
+
+ALTER TABLE `picture` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
+
+ALTER TABLE `picture` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) on delete cascade on update cascade;
+====================== data/insert_test_data.sql =====================
+use wffa_db;
+
+insert into user(`user_email`, `name`, `join_date`, `food_guide`, `post_count`)
+values
+	('kb102', 'Kayla Brand', '11-06-23', True, 0),
+    ('fy100', 'Jennifer Yu', '01-08-02', False, 0),
+    ('kw102', 'Kayley Wang', '29-05-24', True, 30),
+    ('mm999', 'Mickey Mouse', '23-12-10', False, 0);
+
+insert into post(`post_id`, `user_email`, `description`, `post_date`, `expiration_date`, `location`, `building`, `allergens`)
+values
+    (NULL, 'kw102', 'marshmallows, chocolate, and graham crackers', NOW(), '23-11-30', 'Bates Living Room', 'Bates Hall', 'gluten'),
+    (NULL, 'mm999', 'cheese', '00-01-01', NULL, 'room 413', 'Lulu Chow Wang Campus Center', NULL), 
+    (NULL, 'kb102', 'bagels and lox', '23-11-20', '24-01-01', 'ASTRO conference room', 'Observatory', 'eggs,gluten,sesame,dairy');
+
+
+insert into rating(`post_id`, `guide_email`, `rater_email`, `rating`)
+values
+    (3, 'kb102', 'fy100', 4),
+    (3, 'kb102', 'mm999', 5);
+
+insert into `picture`(`post_id`, `image_id`);
+values
+    (1, 0), /*ERROR: auto-increment is not working?*/
+    (1, 1),
+    (3, 2);
+
+    
+====================== data/P3_alpha_dump.sql =====================
+-- MariaDB dump 10.19  Distrib 10.5.22-MariaDB, for Linux (x86_64)
+--
+-- Host: localhost    Database: wffa_db
+-- ------------------------------------------------------
+-- Server version	10.5.22-MariaDB-log
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `comments`
+--
+
+DROP TABLE IF EXISTS `comments`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `comments` (
+  `comment_id` int(11) NOT NULL AUTO_INCREMENT,
+  `post_id` int(11) DEFAULT NULL,
+  `user_email` varchar(30) DEFAULT NULL,
+  `comment` text DEFAULT NULL,
+  `date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`comment_id`),
+  KEY `post_id` (`post_id`),
+  KEY `user_email` (`user_email`),
+  CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `comments_ibfk_2` FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `comments`
+--
+
+LOCK TABLES `comments` WRITE;
+/*!40000 ALTER TABLE `comments` DISABLE KEYS */;
+INSERT INTO `comments` VALUES (3,7,'ss102','woohoo!','2023-12-05 20:39:13'),(4,7,'dw102','is it good?','2023-12-05 20:39:40'),(6,7,'dw102','blah blah','2023-12-05 20:40:50'),(8,7,'dw102','testing scrollabiltiy...','2023-12-05 20:42:09'),(9,7,'dw102','will the comments scroll?\r\n','2023-12-05 20:42:18'),(10,7,'dw102','pllleaassee scroll!','2023-12-05 20:42:29'),(11,7,'dw102','food webstie','2023-12-05 20:42:41'),(14,7,'dw102','testing comment size and how it will appear on the box.............................................................','2023-12-05 20:48:57'),(15,7,'dw102','add comment\r\n','2023-12-05 20:57:00'),(16,7,'mc104','oh, hello!\r\n','2023-12-06 00:04:37'),(17,10,'dw102','oh no!','2023-12-06 15:07:46'),(18,7,'tl001','The ice cubes aren\'t very flavorable \\(`0\')/','2023-12-10 15:39:07'),(19,12,'tl001','Where is Billings -1?','2023-12-10 15:49:38');
+/*!40000 ALTER TABLE `comments` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `picture`
+--
+
+DROP TABLE IF EXISTS `picture`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `picture` (
+  `post_id` int(11) DEFAULT NULL COMMENT 'post id that images are associated with',
+  `image_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'unique id for image of food item',
+  PRIMARY KEY (`image_id`),
+  KEY `post_id` (`post_id`),
+  CONSTRAINT `picture_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `picture`
+--
+
+LOCK TABLES `picture` WRITE;
+/*!40000 ALTER TABLE `picture` DISABLE KEYS */;
+/*!40000 ALTER TABLE `picture` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `post`
+--
+
+DROP TABLE IF EXISTS `post`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `post` (
+  `post_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
+  `user_email` varchar(30) DEFAULT NULL COMMENT 'email of guide who made the post',
+  `description` text DEFAULT NULL COMMENT 'Detail field for the free food',
+  `post_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'when the post was created',
+  `expiration_date` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' COMMENT 'when the post should be deleted',
+  `location` varchar(30) DEFAULT NULL COMMENT 'Specific room location of the food',
+  `building` enum('Acorns','Alumnae Hall','Athletic Maintenance Facility','Bates Hall','Beebe Hall','Billings','Boathouse','Campus Police Headquarters','Cazenove Hall','Cedar Lodge','Cervantes','Cheever House','Child Study Center','Claflin Hall','Collins Cinema','Continuing Education Office','Davis Hall','Davis Museum','Davis Parking Facility','Day Care Center','Distribution Center','Dower House','East Lodge','Fiske House','Founders Hall','Freeman Hall','French House - Carriage','French House - Main','Golf House','Green Hall','Grounds','Hallowell House','Harambee House','Hemlock','Homestead','Horton House','Instead','Jewett Art Center','Keohane Sports Center','Lake House','Library','Lulu Chow Wang Campus Center','Margaret Ferguson Greenhouses','McAfee Hall','Motor Pool','Munger Hall','Nehoiden House','Observatory','Orchard Apts','Pendleton Hall East','Pendleton Hall West','Physical Plant','Pomeroy Hall','President''s House','Ridgeway Apts','Schneider Center','Science Center','Service Building','Severance Hall','Shafer Hall','Shakespeare','Shepard House','Simpson Hall','Simpson West','Slater International Center','Stone Center','Stone Hall','Tower Court East','Tower Court West','Trade Shops Building','Tau Zeta Epsilon','Waban House','Weaver House','Webber Cottage','Wellesley College Club','West Lodge','Whitin House','Zeta Alpha House') DEFAULT NULL COMMENT 'Select one Wellesley campus building where the food is located',
+  `allergens` set('soy','peanuts','dairy','gluten','eggs','shellfish','nuts','sesame') DEFAULT NULL COMMENT 'list of allergens present in the food',
+  PRIMARY KEY (`post_id`),
+  KEY `user_email` (`user_email`),
+  CONSTRAINT `post_ibfk_1` FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `post`
+--
+
+LOCK TABLES `post` WRITE;
+/*!40000 ALTER TABLE `post` DISABLE KEYS */;
+INSERT INTO `post` VALUES (3,'kb102','bagels and lox','2023-11-20 05:00:00','2024-01-01 05:00:00','ASTRO conference room','Observatory','dairy,gluten,eggs,sesame'),(7,'mc104','ice cubes','2023-12-04 05:00:00','2023-12-25 19:09:00','Tower Dining Hall','Tower Court East',''),(10,'dw102','testing food!','2023-12-06 05:00:00','2024-01-04 15:01:00','111','Child Study Center','peanuts'),(12,'tl001','warm cheesy lemon ricotta Italian pancakes with raspberry jam','2023-12-10 15:49:15','2023-12-16 03:48:00','-1','Billings','dairy,gluten,eggs');
+/*!40000 ALTER TABLE `post` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `rating`
+--
+
+DROP TABLE IF EXISTS `rating`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `rating` (
+  `post_id` int(11) NOT NULL COMMENT 'ID of the post being rated',
+  `guide_email` varchar(30) NOT NULL COMMENT 'email of the guide being rated',
+  `rater_email` varchar(30) NOT NULL COMMENT 'email of the user making the rating',
+  `rating` enum('1','2','3','4','5') DEFAULT NULL COMMENT 'star-value of the rating',
+  PRIMARY KEY (`post_id`,`guide_email`,`rater_email`),
+  KEY `guide_email` (`guide_email`),
+  KEY `rater_email` (`rater_email`),
+  CONSTRAINT `rating_ibfk_1` FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `rating_ibfk_2` FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT `rating_ibfk_3` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `rating`
+--
+
+LOCK TABLES `rating` WRITE;
+/*!40000 ALTER TABLE `rating` DISABLE KEYS */;
+INSERT INTO `rating` VALUES (3,'kb102','dw102','5'),(3,'kb102','mc104','2'),(7,'mc104','tl001','1'),(10,'dw102','tl001','4');
+/*!40000 ALTER TABLE `rating` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `user`
+--
+
+DROP TABLE IF EXISTS `user`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `user` (
+  `user_email` varchar(30) NOT NULL COMMENT 'Unique identifier for each user',
+  `name` varchar(50) DEFAULT NULL COMMENT 'Name of the user',
+  `join_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'Joined date for the user',
+  `password` char(60) DEFAULT NULL COMMENT 'bcrypt encoded password',
+  `food_guide` tinyint(1) DEFAULT NULL COMMENT 'Whether user is a food guide or not',
+  `post_count` int(11) DEFAULT NULL COMMENT 'number of posts overall',
+  PRIMARY KEY (`user_email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `user`
+--
+
+LOCK TABLES `user` WRITE;
+/*!40000 ALTER TABLE `user` DISABLE KEYS */;
+INSERT INTO `user` VALUES ('ap555','Alphie Pine','2023-12-02 05:00:00','$2b$12$cgRo6qrWgz6LHIGsJHhDC.ulYrOMA4kLLVUUQwTNjT23son8pYiou',NULL,NULL),('dw102','Dayle Wang','2023-12-06 15:12:32','$2b$12$McahQUPr8ckkIs7xJFMnd.55VGlCkL7KEBAbRtOwjFHrY35o9RFrq',1,4),('fy100','Jennifer Yu','2001-08-02 04:00:00',NULL,0,0),('fy101','Jennifer Yu','2023-12-02 05:00:00','$2b$12$.rSEMhtTs22lhggIdyoBSuRmcDcRZmzVANR3lzr5IA1XTchVeJ2Um',NULL,NULL),('kb102','Kayla Brand','2011-06-23 04:00:00',NULL,1,0),('kw102','Kayley Wang','2029-05-24 04:00:00',NULL,1,30),('mc104','Marsha Cooper','2023-12-04 19:09:33','$2b$12$smTDEVBsbKffqUA7zTHNc.5.wPjafi4dBXV0hfMBI64J2V/KYgXvO',1,2),('mm999','Mickey Mouse','2023-12-10 05:00:00',NULL,0,0),('oi60','Omashu III','2023-12-02 05:00:00','$2b$12$2zrHnfoV2taXt7qIyjt6e.XqHWF7Uws05H2cErPsZtpNB8a72uzjG',NULL,NULL),('sm105','Sam Man','2023-12-02 05:00:00','$2b$12$guitMyyLT6G79LKyh6DfFe/9b3U3tR.Sll9PdoYvO3obWDwfz1iei',NULL,NULL),('ss102','Susan Sally','2023-12-04 20:00:44','$2b$12$upU8IofsWYDPaDO9SOW5COXauiEHCjQvbouwjGvo/nClbrBwFm0te',1,2),('sw113','Sarai Willkuma','2023-12-02 05:00:00','$2b$12$zHIs8D4HK0y1xM9xWCT/4uvbTVoPRrVgaww7qE.FsCCpx2jmc0JCq',NULL,NULL),('ta111','Tahani Al-Jamil','2023-12-02 05:00:00','$2b$12$RIw.Y8kl91z2YgJIbKYVQuu.XADueVNdn.8BWJdmF.1TncVEtJ1h.',NULL,NULL),('test111','test111','2023-12-05 05:00:00','$2b$12$YFGimGZcc1RFjjhComugHOEkS0QwloLPv85uMw4m9nAYBbpB2lRku',NULL,NULL),('tl001','Tupelo Lane','2023-12-10 15:49:15','$2b$12$OLKOMcBZ77Cyzff/5VYmfuMRG9cnGcAH7pO2ZpGN91mEkzUlLvHBa',1,1),('tt111','test 1','2023-12-02 05:00:00','$2b$12$lHtA6zyV1dJH21Y73v0NQOXyZqx/7Rpf4JeseEAm3pkSmvvfk23kq',NULL,NULL);
+/*!40000 ALTER TABLE `user` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2023-12-10 11:21:45
+
+====================== data/wffa_12_1_23.sql =====================
+-- MariaDB dump 10.19  Distrib 10.5.22-MariaDB, for Linux (x86_64)
+--
+-- Host: localhost    Database: wffa_db
+-- ------------------------------------------------------
+-- Server version	10.5.22-MariaDB-log
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `picture`
+--
+
+DROP TABLE IF EXISTS `picture`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `picture` (
+  `post_id` int(11) DEFAULT NULL COMMENT 'post id that images are associated with',
+  `image_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'unique id for image of food item',
+  PRIMARY KEY (`image_id`),
+  KEY `post_id` (`post_id`),
+  CONSTRAINT `picture_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `picture`
+--
+
+LOCK TABLES `picture` WRITE;
+/*!40000 ALTER TABLE `picture` DISABLE KEYS */;
+INSERT INTO `picture` VALUES (1,2);
+/*!40000 ALTER TABLE `picture` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `post`
+--
+
+DROP TABLE IF EXISTS `post`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `post` (
+  `post_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
+  `user_email` char(8) DEFAULT NULL COMMENT 'email of guide who made the post',
+  `description` text DEFAULT NULL COMMENT 'Detail field for the free food',
+  `post_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'when the post was created',
+  `expiration_date` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' COMMENT 'when the post should be deleted',
+  `location` varchar(30) DEFAULT NULL COMMENT 'Specific room location of the food',
+  `building` enum('Acorns','Alumnae Hall','Athletic Maintenance Facility','Bates Hall','Beebe Hall','Billings','Boathouse','Campus Police Headquarters','Cazenove Hall','Cedar Lodge','Cervantes','Cheever House','Child Study Center','Claflin Hall','Collins Cinema','Continuing Education Office','Davis Hall','Davis Museum','Davis Parking Facility','Day Care Center','Distribution Center','Dower House','East Lodge','Fiske House','Founders Hall','Freeman Hall','French House - Carriage','French House - Main','Golf House','Green Hall','Grounds','Hallowell House','Harambee House','Hemlock','Homestead','Horton House','Instead','Jewett Art Center','Keohane Sports Center','Lake House','Library','Lulu Chow Wang Campus Center','Margaret Ferguson Greenhouses','McAfee Hall','Motor Pool','Munger Hall','Nehoiden House','Observatory','Orchard Apts','Pendleton Hall East','Pendleton Hall West','Physical Plant','Pomeroy Hall','President''s House','Ridgeway Apts','Schneider Center','Science Center','Service Building','Severance Hall','Shafer Hall','Shakespeare','Shepard House','Simpson Hall','Simpson West','Slater International Center','Stone Center','Stone Hall','Tower Court East','Tower Court West','Trade Shops Building','Tau Zeta Epsilon','Waban House','Weaver House','Webber Cottage','Wellesley College Club','West Lodge','Whitin House','Zeta Alpha House') DEFAULT NULL COMMENT 'Select one Wellesley campus building where the food is located',
+  `allergens` set('soy','peanuts','dairy','gluten','eggs','shellfish','nuts','sesame') DEFAULT NULL COMMENT 'list of allergens present in the food',
+  PRIMARY KEY (`post_id`),
+  KEY `user_email` (`user_email`),
+  CONSTRAINT `post_ibfk_1` FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`)
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `post`
+--
+
+LOCK TABLES `post` WRITE;
+/*!40000 ALTER TABLE `post` DISABLE KEYS */;
+INSERT INTO `post` VALUES (1,'kw102','marshmallows, chocolate, and graham crackers','2023-11-20 15:45:55','2023-11-30 05:00:00','Bates Living Room','Bates Hall','gluten'),(2,'mm999','cheese','2000-01-01 05:00:00','2023-11-20 15:45:55','room 413','Lulu Chow Wang Campus Center',NULL),(3,'kb102','bagels and lox','2023-11-20 05:00:00','2024-01-01 05:00:00','ASTRO conference room','Observatory','dairy,gluten,eggs,sesame'),(4,'kw102','ham and cheese','2023-11-20 05:00:00','2023-11-20 21:58:00','floor 1','Campus Police Headquarters',''),(5,'kw102','bananas, apples, pineapples, bread, walnut cake','2023-11-20 05:00:00','2023-11-21 22:03:00','333','Cervantes',''),(6,'kw102','Walnut banana bread - 1 loaf available (10 slices)','2023-11-20 05:00:00','2023-11-20 22:04:00','123','Acorns',''),(7,'kw102','grape jelly','2023-11-20 05:00:00','2023-11-20 22:38:00','in front of police station','Davis Parking Facility',''),(8,'rd100','delicious crumbs from puff pastries, baguettes, and sandwich bread, oh la la','2023-11-21 05:00:00','2023-11-30 23:14:00','front bench','Boathouse',''),(10,'sanderso','packaged twizzlers left over from Halloween','2023-11-25 05:00:00','2024-01-01 04:59:00','W118','Science Center',''),(11,'kw102','fruit cake with walnuts','2023-11-29 05:00:00','2023-11-30 18:29:00','333','Davis Hall',''),(12,'kw102','peanuts testing insert...','2023-11-29 05:00:00','2023-11-29 19:40:00','000','Claflin Hall',''),(13,'kw102','dairy?','2023-11-29 05:00:00','2023-11-30 22:41:00','33333','Continuing Education Office',''),(14,'kw102','peanuts!','2023-11-29 05:00:00','2023-12-01 22:42:00','321','Continuing Education Office',''),(15,'kw102','peanuts','2023-11-29 05:00:00','2023-11-29 21:49:00','111','Collins Cinema','peanuts,nuts'),(16,'kw102','Hot coffee and hot chocolate is available. Some milk on the side too.','2023-11-29 05:00:00','2023-12-01 00:00:00','122','Wellesley College Club','dairy'),(17,'ka111','Carrots, celery, broccoli','2023-11-29 05:00:00','2023-12-01 13:47:00','111','Davis Parking Facility',''),(18,'ka111','tofu stew with some nuts inside it?','2023-11-29 05:00:00','2023-11-30 02:53:00','1234','Collins Cinema','nuts'),(19,'ka111','tofu stew with some nuts inside it?','2023-11-29 05:00:00','2023-11-30 02:53:00','1234','Collins Cinema','nuts');
+/*!40000 ALTER TABLE `post` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `rating`
+--
+
+DROP TABLE IF EXISTS `rating`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `rating` (
+  `rate_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
+  `post_id` int(11) DEFAULT NULL COMMENT 'ID of the post being rated',
+  `guide_email` char(8) DEFAULT NULL COMMENT 'email of the guide being rated',
+  `rater_email` char(8) DEFAULT NULL COMMENT 'email of the user making the rating',
+  `rating` enum('1','2','3','4','5') DEFAULT NULL COMMENT 'star-value of the rating',
+  PRIMARY KEY (`rate_id`),
+  KEY `guide_email` (`guide_email`),
+  KEY `rater_email` (`rater_email`),
+  KEY `post_id` (`post_id`),
+  CONSTRAINT `rating_ibfk_1` FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`),
+  CONSTRAINT `rating_ibfk_2` FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`),
+  CONSTRAINT `rating_ibfk_3` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `rating`
+--
+
+LOCK TABLES `rating` WRITE;
+/*!40000 ALTER TABLE `rating` DISABLE KEYS */;
+INSERT INTO `rating` VALUES (1,3,'kb102','fy100','4'),(2,3,'kb102','mm999','5'),(3,6,'kw102','rd100','3'),(4,2,'mm999','rd100','5'),(5,10,'sanderso','rd100','5'),(6,1,'kw102','rd100','5'),(7,14,'kw102','rd100','4'),(8,1,'kw102','rd100','5');
+/*!40000 ALTER TABLE `rating` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `user`
+--
+
+DROP TABLE IF EXISTS `user`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `user` (
+  `user_email` char(8) NOT NULL COMMENT 'Unique identifier for each user',
+  `name` varchar(50) DEFAULT NULL COMMENT 'Name of the user',
+  `password` char(60) DEFAULT NULL,
+  `join_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'Joined date for the user',
+  `food_guide` tinyint(1) DEFAULT NULL COMMENT 'Whether user is a food guide or not',
+  `post_count` int(11) DEFAULT NULL COMMENT 'number of posts overall',
+  PRIMARY KEY (`user_email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `user`
+--
+
+LOCK TABLES `user` WRITE;
+/*!40000 ALTER TABLE `user` DISABLE KEYS */;
+INSERT INTO `user` VALUES ('fy100','Jennifer Yu',NULL,'2001-08-02 04:00:00',0,0),('ka111','Kelly Ann','$2b$12$SM8kIlFCc/wJUDrxPKQrOeVZ.03NCFc2yqghRQRcB8EE39sYzRh5K','2023-11-29 21:53:23',1,3),('kb102','Kayla Brand',NULL,'2011-06-23 04:00:00',1,0),('kw102','Kayley Wang',NULL,'2029-05-24 04:00:00',1,30),('mm999','Mickey Mouse',NULL,'2023-12-10 05:00:00',0,0),('rd100','Rubber Duck','$2b$12$k5ogteKD0UIZxX6xhL.Os.aPopUSVnpUoOBmVv7PRPFIuHn6zrMte','2023-12-01 22:50:55',1,NULL),('sanderso','Scott Anderson','$2b$12$XiCoWemtngIXqYabdvwCtefNk2TSY3.uY40xwZRZ8afhS10GuctMa','2023-11-25 05:00:00',NULL,NULL);
+/*!40000 ALTER TABLE `user` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+-- Dump completed on 2023-12-01 21:35:06
+
+====================== data/WFFA.sql =====================
+use wffa_db;
+
+drop table if exists picture; 
+drop table if exists rating;
+drop table if exists post;
+drop table if exists user;
+
+CREATE TABLE `user` (
+  `user_email` varchar(30) PRIMARY KEY COMMENT 'Unique identifier for each user',
+  `name` varchar(50) COMMENT 'Name of the user',
+  `join_date` timestamp COMMENT 'Joined date for the user',
+  `password` char(60) COMMENT 'bcrypt encoded password',
+  `food_guide` boolean COMMENT 'Whether user is a food guide or not',
+  `post_count` integer COMMENT 'number of posts overall'
+);
+
+CREATE TABLE `post` (
+  `post_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
+  `user_email` varchar(30) COMMENT 'email of guide who made the post',
+  `description` text COMMENT 'Detail field for the free food',
+  `post_date` timestamp COMMENT 'when the post was created',
+  `expiration_date` timestamp COMMENT 'when the post should be deleted',
+  `location` varchar(30) COMMENT 'Specific room location of the food',
+  `building` ENUM ('Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
+    'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
+    'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
+    'Collins Cinema', 'Continuing Education Office', 'Davis Hall', 'Davis Museum', 
+    'Davis Parking Facility', 'Day Care Center', 'Distribution Center', 'Dower House', 
+    'East Lodge', 'Fiske House', 'Founders Hall', 'Freeman Hall', 'French House - Carriage', 
+    'French House - Main', 'Golf House', 'Green Hall', 'Grounds', 'Hallowell House', 'Harambee House', 
+    'Hemlock', 'Homestead', 'Horton House', 'Instead', 'Jewett Art Center', 'Keohane Sports Center', 
+    'Lake House', 'Library', 'Lulu Chow Wang Campus Center', 'Margaret Ferguson Greenhouses', 
+    'McAfee Hall', 'Motor Pool', 'Munger Hall', 'Nehoiden House', 'Observatory', 'Orchard Apts', 
+    'Pendleton Hall East', 'Pendleton Hall West', 'Physical Plant', 'Pomeroy Hall', 
+    "President's House", 'Ridgeway Apts', 'Schneider Center', 'Science Center', 'Service Building', 
+    'Severance Hall', 'Shafer Hall', 'Shakespeare', 'Shepard House', 'Simpson Hall', 'Simpson West', 
+    'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
+     'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
+     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House') 
+     COMMENT 'Select one Wellesley campus building where the food is located',
+  `allergens` SET ('soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame') COMMENT 'list of allergens present in the food'
+);
+
+CREATE TABLE `rating` (
+  `post_id` integer COMMENT 'ID of the post being rated',
+  `guide_email` varchar(30) COMMENT 'email of the guide being rated',
+  `rater_email` varchar(30) COMMENT 'email of the user making the rating',
+  `rating` ENUM ('1', '2', '3', '4', '5') COMMENT 'star-value of the rating',
+  PRIMARY KEY (`post_id`, `guide_email`, `rater_email`)
+);
+
+CREATE TABLE `picture` (
+  `user_email` varchar(30) not null COMMENT 'lasting responsibility identifier',
+  `post_id` integer COMMENT 'post id that images are associated with',
+  `image_id` integer not null AUTO_INCREMENT COMMENT 'unique id for image of food item',
+  `filetype` varchar(10) not null COMMENT 'file ending',
+  PRIMARY KEY (`image_id`),
+  foreign key (post_id) references `post`(post_id) 
+        on delete cascade on update cascade
+);
+
+ALTER TABLE `post` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
+
+ALTER TABLE `rating` ADD FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
+
+ALTER TABLE `rating` ADD FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
+
+ALTER TABLE `rating` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) on update cascade;
+
+ALTER TABLE `picture` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
+
+ALTER TABLE `picture` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) on delete cascade on update cascade;
+
+====================== static/style.css =====================
 /* the --color-header and others are CSS variables, which we access later. 
 */
 HTML {
@@ -1554,416 +2595,9 @@ nav button:hover, button:focus, nav a:hover, nav a:focus {
     color: #fff;
 }
 
-use wffa_db;
+img {
+    width: 100%;
+    height: auto;
+}
 
-insert into user(`user_email`, `name`, `join_date`, `food_guide`, `post_count`)
-values
-	('kb102', 'Kayla Brand', '11-06-23', True, 0),
-    ('fy100', 'Jennifer Yu', '01-08-02', False, 0),
-    ('kw102', 'Kayley Wang', '29-05-24', True, 30),
-    ('mm999', 'Mickey Mouse', '23-12-10', False, 0);
-
-insert into post(`post_id`, `user_email`, `description`, `post_date`, `expiration_date`, `location`, `building`, `allergens`)
-values
-    (NULL, 'kw102', 'marshmallows, chocolate, and graham crackers', NOW(), '23-11-30', 'Bates Living Room', 'Bates Hall', 'gluten'),
-    (NULL, 'mm999', 'cheese', '00-01-01', NULL, 'room 413', 'Lulu Chow Wang Campus Center', NULL), 
-    (NULL, 'kb102', 'bagels and lox', '23-11-20', '24-01-01', 'ASTRO conference room', 'Observatory', 'eggs,gluten,sesame,dairy');
-
-
-insert into rating(`post_id`, `guide_email`, `rater_email`, `rating`)
-values
-    (3, 'kb102', 'fy100', 4),
-    (3, 'kb102', 'mm999', 5);
-
-insert into `picture`(`post_id`, `image_id`);
-values
-    (1, 0), /*ERROR: auto-increment is not working?*/
-    (1, 1),
-    (3, 2);
-
-    -- MariaDB dump 10.19  Distrib 10.5.22-MariaDB, for Linux (x86_64)
---
--- Host: localhost    Database: wffa_db
--- ------------------------------------------------------
--- Server version	10.5.22-MariaDB-log
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `comments`
---
-
-DROP TABLE IF EXISTS `comments`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `comments` (
-  `comment_id` int(11) NOT NULL AUTO_INCREMENT,
-  `post_id` int(11) DEFAULT NULL,
-  `user_email` varchar(30) DEFAULT NULL,
-  `comment` text DEFAULT NULL,
-  `date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  PRIMARY KEY (`comment_id`),
-  KEY `post_id` (`post_id`),
-  KEY `user_email` (`user_email`),
-  CONSTRAINT `comments_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `comments_ibfk_2` FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `comments`
---
-
-LOCK TABLES `comments` WRITE;
-/*!40000 ALTER TABLE `comments` DISABLE KEYS */;
-INSERT INTO `comments` VALUES (3,7,'ss102','woohoo!','2023-12-05 20:39:13'),(4,7,'dw102','is it good?','2023-12-05 20:39:40'),(6,7,'dw102','blah blah','2023-12-05 20:40:50'),(8,7,'dw102','testing scrollabiltiy...','2023-12-05 20:42:09'),(9,7,'dw102','will the comments scroll?\r\n','2023-12-05 20:42:18'),(10,7,'dw102','pllleaassee scroll!','2023-12-05 20:42:29'),(11,7,'dw102','food webstie','2023-12-05 20:42:41'),(14,7,'dw102','testing comment size and how it will appear on the box.............................................................','2023-12-05 20:48:57'),(15,7,'dw102','add comment\r\n','2023-12-05 20:57:00'),(16,7,'mc104','oh, hello!\r\n','2023-12-06 00:04:37'),(17,10,'dw102','oh no!','2023-12-06 15:07:46'),(18,7,'tl001','The ice cubes aren\'t very flavorable \\(`0\')/','2023-12-10 15:39:07'),(19,12,'tl001','Where is Billings -1?','2023-12-10 15:49:38');
-/*!40000 ALTER TABLE `comments` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `picture`
---
-
-DROP TABLE IF EXISTS `picture`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `picture` (
-  `post_id` int(11) DEFAULT NULL COMMENT 'post id that images are associated with',
-  `image_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'unique id for image of food item',
-  PRIMARY KEY (`image_id`),
-  KEY `post_id` (`post_id`),
-  CONSTRAINT `picture_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `picture`
---
-
-LOCK TABLES `picture` WRITE;
-/*!40000 ALTER TABLE `picture` DISABLE KEYS */;
-/*!40000 ALTER TABLE `picture` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `post`
---
-
-DROP TABLE IF EXISTS `post`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `post` (
-  `post_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
-  `user_email` varchar(30) DEFAULT NULL COMMENT 'email of guide who made the post',
-  `description` text DEFAULT NULL COMMENT 'Detail field for the free food',
-  `post_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'when the post was created',
-  `expiration_date` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' COMMENT 'when the post should be deleted',
-  `location` varchar(30) DEFAULT NULL COMMENT 'Specific room location of the food',
-  `building` enum('Acorns','Alumnae Hall','Athletic Maintenance Facility','Bates Hall','Beebe Hall','Billings','Boathouse','Campus Police Headquarters','Cazenove Hall','Cedar Lodge','Cervantes','Cheever House','Child Study Center','Claflin Hall','Collins Cinema','Continuing Education Office','Davis Hall','Davis Museum','Davis Parking Facility','Day Care Center','Distribution Center','Dower House','East Lodge','Fiske House','Founders Hall','Freeman Hall','French House - Carriage','French House - Main','Golf House','Green Hall','Grounds','Hallowell House','Harambee House','Hemlock','Homestead','Horton House','Instead','Jewett Art Center','Keohane Sports Center','Lake House','Library','Lulu Chow Wang Campus Center','Margaret Ferguson Greenhouses','McAfee Hall','Motor Pool','Munger Hall','Nehoiden House','Observatory','Orchard Apts','Pendleton Hall East','Pendleton Hall West','Physical Plant','Pomeroy Hall','President''s House','Ridgeway Apts','Schneider Center','Science Center','Service Building','Severance Hall','Shafer Hall','Shakespeare','Shepard House','Simpson Hall','Simpson West','Slater International Center','Stone Center','Stone Hall','Tower Court East','Tower Court West','Trade Shops Building','Tau Zeta Epsilon','Waban House','Weaver House','Webber Cottage','Wellesley College Club','West Lodge','Whitin House','Zeta Alpha House') DEFAULT NULL COMMENT 'Select one Wellesley campus building where the food is located',
-  `allergens` set('soy','peanuts','dairy','gluten','eggs','shellfish','nuts','sesame') DEFAULT NULL COMMENT 'list of allergens present in the food',
-  PRIMARY KEY (`post_id`),
-  KEY `user_email` (`user_email`),
-  CONSTRAINT `post_ibfk_1` FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `post`
---
-
-LOCK TABLES `post` WRITE;
-/*!40000 ALTER TABLE `post` DISABLE KEYS */;
-INSERT INTO `post` VALUES (3,'kb102','bagels and lox','2023-11-20 05:00:00','2024-01-01 05:00:00','ASTRO conference room','Observatory','dairy,gluten,eggs,sesame'),(7,'mc104','ice cubes','2023-12-04 05:00:00','2023-12-25 19:09:00','Tower Dining Hall','Tower Court East',''),(10,'dw102','testing food!','2023-12-06 05:00:00','2024-01-04 15:01:00','111','Child Study Center','peanuts'),(12,'tl001','warm cheesy lemon ricotta Italian pancakes with raspberry jam','2023-12-10 15:49:15','2023-12-16 03:48:00','-1','Billings','dairy,gluten,eggs');
-/*!40000 ALTER TABLE `post` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `rating`
---
-
-DROP TABLE IF EXISTS `rating`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `rating` (
-  `post_id` int(11) NOT NULL COMMENT 'ID of the post being rated',
-  `guide_email` varchar(30) NOT NULL COMMENT 'email of the guide being rated',
-  `rater_email` varchar(30) NOT NULL COMMENT 'email of the user making the rating',
-  `rating` enum('1','2','3','4','5') DEFAULT NULL COMMENT 'star-value of the rating',
-  PRIMARY KEY (`post_id`,`guide_email`,`rater_email`),
-  KEY `guide_email` (`guide_email`),
-  KEY `rater_email` (`rater_email`),
-  CONSTRAINT `rating_ibfk_1` FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `rating_ibfk_2` FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `rating_ibfk_3` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `rating`
---
-
-LOCK TABLES `rating` WRITE;
-/*!40000 ALTER TABLE `rating` DISABLE KEYS */;
-INSERT INTO `rating` VALUES (3,'kb102','dw102','5'),(3,'kb102','mc104','2'),(7,'mc104','tl001','1'),(10,'dw102','tl001','4');
-/*!40000 ALTER TABLE `rating` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `user`
---
-
-DROP TABLE IF EXISTS `user`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `user` (
-  `user_email` varchar(30) NOT NULL COMMENT 'Unique identifier for each user',
-  `name` varchar(50) DEFAULT NULL COMMENT 'Name of the user',
-  `join_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'Joined date for the user',
-  `password` char(60) DEFAULT NULL COMMENT 'bcrypt encoded password',
-  `food_guide` tinyint(1) DEFAULT NULL COMMENT 'Whether user is a food guide or not',
-  `post_count` int(11) DEFAULT NULL COMMENT 'number of posts overall',
-  PRIMARY KEY (`user_email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `user`
---
-
-LOCK TABLES `user` WRITE;
-/*!40000 ALTER TABLE `user` DISABLE KEYS */;
-INSERT INTO `user` VALUES ('ap555','Alphie Pine','2023-12-02 05:00:00','$2b$12$cgRo6qrWgz6LHIGsJHhDC.ulYrOMA4kLLVUUQwTNjT23son8pYiou',NULL,NULL),('dw102','Dayle Wang','2023-12-06 15:12:32','$2b$12$McahQUPr8ckkIs7xJFMnd.55VGlCkL7KEBAbRtOwjFHrY35o9RFrq',1,4),('fy100','Jennifer Yu','2001-08-02 04:00:00',NULL,0,0),('fy101','Jennifer Yu','2023-12-02 05:00:00','$2b$12$.rSEMhtTs22lhggIdyoBSuRmcDcRZmzVANR3lzr5IA1XTchVeJ2Um',NULL,NULL),('kb102','Kayla Brand','2011-06-23 04:00:00',NULL,1,0),('kw102','Kayley Wang','2029-05-24 04:00:00',NULL,1,30),('mc104','Marsha Cooper','2023-12-04 19:09:33','$2b$12$smTDEVBsbKffqUA7zTHNc.5.wPjafi4dBXV0hfMBI64J2V/KYgXvO',1,2),('mm999','Mickey Mouse','2023-12-10 05:00:00',NULL,0,0),('oi60','Omashu III','2023-12-02 05:00:00','$2b$12$2zrHnfoV2taXt7qIyjt6e.XqHWF7Uws05H2cErPsZtpNB8a72uzjG',NULL,NULL),('sm105','Sam Man','2023-12-02 05:00:00','$2b$12$guitMyyLT6G79LKyh6DfFe/9b3U3tR.Sll9PdoYvO3obWDwfz1iei',NULL,NULL),('ss102','Susan Sally','2023-12-04 20:00:44','$2b$12$upU8IofsWYDPaDO9SOW5COXauiEHCjQvbouwjGvo/nClbrBwFm0te',1,2),('sw113','Sarai Willkuma','2023-12-02 05:00:00','$2b$12$zHIs8D4HK0y1xM9xWCT/4uvbTVoPRrVgaww7qE.FsCCpx2jmc0JCq',NULL,NULL),('ta111','Tahani Al-Jamil','2023-12-02 05:00:00','$2b$12$RIw.Y8kl91z2YgJIbKYVQuu.XADueVNdn.8BWJdmF.1TncVEtJ1h.',NULL,NULL),('test111','test111','2023-12-05 05:00:00','$2b$12$YFGimGZcc1RFjjhComugHOEkS0QwloLPv85uMw4m9nAYBbpB2lRku',NULL,NULL),('tl001','Tupelo Lane','2023-12-10 15:49:15','$2b$12$OLKOMcBZ77Cyzff/5VYmfuMRG9cnGcAH7pO2ZpGN91mEkzUlLvHBa',1,1),('tt111','test 1','2023-12-02 05:00:00','$2b$12$lHtA6zyV1dJH21Y73v0NQOXyZqx/7Rpf4JeseEAm3pkSmvvfk23kq',NULL,NULL);
-/*!40000 ALTER TABLE `user` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2023-12-10 11:21:45
--- MariaDB dump 10.19  Distrib 10.5.22-MariaDB, for Linux (x86_64)
---
--- Host: localhost    Database: wffa_db
--- ------------------------------------------------------
--- Server version	10.5.22-MariaDB-log
-
-/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
-/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
-/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
-/*!40101 SET NAMES utf8mb4 */;
-/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
-/*!40103 SET TIME_ZONE='+00:00' */;
-/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
-/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
-/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
-/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
-
---
--- Table structure for table `picture`
---
-
-DROP TABLE IF EXISTS `picture`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `picture` (
-  `post_id` int(11) DEFAULT NULL COMMENT 'post id that images are associated with',
-  `image_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'unique id for image of food item',
-  PRIMARY KEY (`image_id`),
-  KEY `post_id` (`post_id`),
-  CONSTRAINT `picture_ibfk_1` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `picture`
---
-
-LOCK TABLES `picture` WRITE;
-/*!40000 ALTER TABLE `picture` DISABLE KEYS */;
-INSERT INTO `picture` VALUES (1,2);
-/*!40000 ALTER TABLE `picture` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `post`
---
-
-DROP TABLE IF EXISTS `post`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `post` (
-  `post_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
-  `user_email` char(8) DEFAULT NULL COMMENT 'email of guide who made the post',
-  `description` text DEFAULT NULL COMMENT 'Detail field for the free food',
-  `post_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'when the post was created',
-  `expiration_date` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00' COMMENT 'when the post should be deleted',
-  `location` varchar(30) DEFAULT NULL COMMENT 'Specific room location of the food',
-  `building` enum('Acorns','Alumnae Hall','Athletic Maintenance Facility','Bates Hall','Beebe Hall','Billings','Boathouse','Campus Police Headquarters','Cazenove Hall','Cedar Lodge','Cervantes','Cheever House','Child Study Center','Claflin Hall','Collins Cinema','Continuing Education Office','Davis Hall','Davis Museum','Davis Parking Facility','Day Care Center','Distribution Center','Dower House','East Lodge','Fiske House','Founders Hall','Freeman Hall','French House - Carriage','French House - Main','Golf House','Green Hall','Grounds','Hallowell House','Harambee House','Hemlock','Homestead','Horton House','Instead','Jewett Art Center','Keohane Sports Center','Lake House','Library','Lulu Chow Wang Campus Center','Margaret Ferguson Greenhouses','McAfee Hall','Motor Pool','Munger Hall','Nehoiden House','Observatory','Orchard Apts','Pendleton Hall East','Pendleton Hall West','Physical Plant','Pomeroy Hall','President''s House','Ridgeway Apts','Schneider Center','Science Center','Service Building','Severance Hall','Shafer Hall','Shakespeare','Shepard House','Simpson Hall','Simpson West','Slater International Center','Stone Center','Stone Hall','Tower Court East','Tower Court West','Trade Shops Building','Tau Zeta Epsilon','Waban House','Weaver House','Webber Cottage','Wellesley College Club','West Lodge','Whitin House','Zeta Alpha House') DEFAULT NULL COMMENT 'Select one Wellesley campus building where the food is located',
-  `allergens` set('soy','peanuts','dairy','gluten','eggs','shellfish','nuts','sesame') DEFAULT NULL COMMENT 'list of allergens present in the food',
-  PRIMARY KEY (`post_id`),
-  KEY `user_email` (`user_email`),
-  CONSTRAINT `post_ibfk_1` FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`)
-) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `post`
---
-
-LOCK TABLES `post` WRITE;
-/*!40000 ALTER TABLE `post` DISABLE KEYS */;
-INSERT INTO `post` VALUES (1,'kw102','marshmallows, chocolate, and graham crackers','2023-11-20 15:45:55','2023-11-30 05:00:00','Bates Living Room','Bates Hall','gluten'),(2,'mm999','cheese','2000-01-01 05:00:00','2023-11-20 15:45:55','room 413','Lulu Chow Wang Campus Center',NULL),(3,'kb102','bagels and lox','2023-11-20 05:00:00','2024-01-01 05:00:00','ASTRO conference room','Observatory','dairy,gluten,eggs,sesame'),(4,'kw102','ham and cheese','2023-11-20 05:00:00','2023-11-20 21:58:00','floor 1','Campus Police Headquarters',''),(5,'kw102','bananas, apples, pineapples, bread, walnut cake','2023-11-20 05:00:00','2023-11-21 22:03:00','333','Cervantes',''),(6,'kw102','Walnut banana bread - 1 loaf available (10 slices)','2023-11-20 05:00:00','2023-11-20 22:04:00','123','Acorns',''),(7,'kw102','grape jelly','2023-11-20 05:00:00','2023-11-20 22:38:00','in front of police station','Davis Parking Facility',''),(8,'rd100','delicious crumbs from puff pastries, baguettes, and sandwich bread, oh la la','2023-11-21 05:00:00','2023-11-30 23:14:00','front bench','Boathouse',''),(10,'sanderso','packaged twizzlers left over from Halloween','2023-11-25 05:00:00','2024-01-01 04:59:00','W118','Science Center',''),(11,'kw102','fruit cake with walnuts','2023-11-29 05:00:00','2023-11-30 18:29:00','333','Davis Hall',''),(12,'kw102','peanuts testing insert...','2023-11-29 05:00:00','2023-11-29 19:40:00','000','Claflin Hall',''),(13,'kw102','dairy?','2023-11-29 05:00:00','2023-11-30 22:41:00','33333','Continuing Education Office',''),(14,'kw102','peanuts!','2023-11-29 05:00:00','2023-12-01 22:42:00','321','Continuing Education Office',''),(15,'kw102','peanuts','2023-11-29 05:00:00','2023-11-29 21:49:00','111','Collins Cinema','peanuts,nuts'),(16,'kw102','Hot coffee and hot chocolate is available. Some milk on the side too.','2023-11-29 05:00:00','2023-12-01 00:00:00','122','Wellesley College Club','dairy'),(17,'ka111','Carrots, celery, broccoli','2023-11-29 05:00:00','2023-12-01 13:47:00','111','Davis Parking Facility',''),(18,'ka111','tofu stew with some nuts inside it?','2023-11-29 05:00:00','2023-11-30 02:53:00','1234','Collins Cinema','nuts'),(19,'ka111','tofu stew with some nuts inside it?','2023-11-29 05:00:00','2023-11-30 02:53:00','1234','Collins Cinema','nuts');
-/*!40000 ALTER TABLE `post` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `rating`
---
-
-DROP TABLE IF EXISTS `rating`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `rating` (
-  `rate_id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'unique id of this rating, could be replaced with triple of guide, rater, and post',
-  `post_id` int(11) DEFAULT NULL COMMENT 'ID of the post being rated',
-  `guide_email` char(8) DEFAULT NULL COMMENT 'email of the guide being rated',
-  `rater_email` char(8) DEFAULT NULL COMMENT 'email of the user making the rating',
-  `rating` enum('1','2','3','4','5') DEFAULT NULL COMMENT 'star-value of the rating',
-  PRIMARY KEY (`rate_id`),
-  KEY `guide_email` (`guide_email`),
-  KEY `rater_email` (`rater_email`),
-  KEY `post_id` (`post_id`),
-  CONSTRAINT `rating_ibfk_1` FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`),
-  CONSTRAINT `rating_ibfk_2` FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`),
-  CONSTRAINT `rating_ibfk_3` FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `rating`
---
-
-LOCK TABLES `rating` WRITE;
-/*!40000 ALTER TABLE `rating` DISABLE KEYS */;
-INSERT INTO `rating` VALUES (1,3,'kb102','fy100','4'),(2,3,'kb102','mm999','5'),(3,6,'kw102','rd100','3'),(4,2,'mm999','rd100','5'),(5,10,'sanderso','rd100','5'),(6,1,'kw102','rd100','5'),(7,14,'kw102','rd100','4'),(8,1,'kw102','rd100','5');
-/*!40000 ALTER TABLE `rating` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `user`
---
-
-DROP TABLE IF EXISTS `user`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
-CREATE TABLE `user` (
-  `user_email` char(8) NOT NULL COMMENT 'Unique identifier for each user',
-  `name` varchar(50) DEFAULT NULL COMMENT 'Name of the user',
-  `password` char(60) DEFAULT NULL,
-  `join_date` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp() COMMENT 'Joined date for the user',
-  `food_guide` tinyint(1) DEFAULT NULL COMMENT 'Whether user is a food guide or not',
-  `post_count` int(11) DEFAULT NULL COMMENT 'number of posts overall',
-  PRIMARY KEY (`user_email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `user`
---
-
-LOCK TABLES `user` WRITE;
-/*!40000 ALTER TABLE `user` DISABLE KEYS */;
-INSERT INTO `user` VALUES ('fy100','Jennifer Yu',NULL,'2001-08-02 04:00:00',0,0),('ka111','Kelly Ann','$2b$12$SM8kIlFCc/wJUDrxPKQrOeVZ.03NCFc2yqghRQRcB8EE39sYzRh5K','2023-11-29 21:53:23',1,3),('kb102','Kayla Brand',NULL,'2011-06-23 04:00:00',1,0),('kw102','Kayley Wang',NULL,'2029-05-24 04:00:00',1,30),('mm999','Mickey Mouse',NULL,'2023-12-10 05:00:00',0,0),('rd100','Rubber Duck','$2b$12$k5ogteKD0UIZxX6xhL.Os.aPopUSVnpUoOBmVv7PRPFIuHn6zrMte','2023-12-01 22:50:55',1,NULL),('sanderso','Scott Anderson','$2b$12$XiCoWemtngIXqYabdvwCtefNk2TSY3.uY40xwZRZ8afhS10GuctMa','2023-11-25 05:00:00',NULL,NULL);
-/*!40000 ALTER TABLE `user` ENABLE KEYS */;
-UNLOCK TABLES;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2023-12-01 21:35:06
-use wffa_db;
-
-drop table if exists picture; 
-drop table if exists rating;
-drop table if exists post;
-drop table if exists user;
-
-CREATE TABLE `user` (
-  `user_email` varchar(30) PRIMARY KEY COMMENT 'Unique identifier for each user',
-  `name` varchar(50) COMMENT 'Name of the user',
-  `join_date` timestamp COMMENT 'Joined date for the user',
-  `password` char(60) COMMENT 'bcrypt encoded password',
-  `food_guide` boolean COMMENT 'Whether user is a food guide or not',
-  `post_count` integer COMMENT 'number of posts overall'
-);
-
-CREATE TABLE `post` (
-  `post_id` integer PRIMARY KEY not null AUTO_INCREMENT COMMENT 'Unique identifier for each food post',
-  `user_email` varchar(30) COMMENT 'email of guide who made the post',
-  `description` text COMMENT 'Detail field for the free food',
-  `post_date` timestamp COMMENT 'when the post was created',
-  `expiration_date` timestamp COMMENT 'when the post should be deleted',
-  `location` varchar(30) COMMENT 'Specific room location of the food',
-  `building` ENUM ('Acorns', 'Alumnae Hall', 'Athletic Maintenance Facility', 'Bates Hall', 
-    'Beebe Hall', 'Billings', 'Boathouse', 'Campus Police Headquarters', 'Cazenove Hall', 
-    'Cedar Lodge', 'Cervantes', 'Cheever House', 'Child Study Center', 'Claflin Hall', 
-    'Collins Cinema', 'Continuing Education Office', 'Davis Hall', 'Davis Museum', 
-    'Davis Parking Facility', 'Day Care Center', 'Distribution Center', 'Dower House', 
-    'East Lodge', 'Fiske House', 'Founders Hall', 'Freeman Hall', 'French House - Carriage', 
-    'French House - Main', 'Golf House', 'Green Hall', 'Grounds', 'Hallowell House', 'Harambee House', 
-    'Hemlock', 'Homestead', 'Horton House', 'Instead', 'Jewett Art Center', 'Keohane Sports Center', 
-    'Lake House', 'Library', 'Lulu Chow Wang Campus Center', 'Margaret Ferguson Greenhouses', 
-    'McAfee Hall', 'Motor Pool', 'Munger Hall', 'Nehoiden House', 'Observatory', 'Orchard Apts', 
-    'Pendleton Hall East', 'Pendleton Hall West', 'Physical Plant', 'Pomeroy Hall', 
-    "President's House", 'Ridgeway Apts', 'Schneider Center', 'Science Center', 'Service Building', 
-    'Severance Hall', 'Shafer Hall', 'Shakespeare', 'Shepard House', 'Simpson Hall', 'Simpson West', 
-    'Slater International Center', 'Stone Center', 'Stone Hall', 'Tower Court East', 'Tower Court West',
-     'Trade Shops Building', 'Tau Zeta Epsilon', 'Waban House', 'Weaver House', 'Webber Cottage', 
-     'Wellesley College Club', 'West Lodge', 'Whitin House', 'Zeta Alpha House') 
-     COMMENT 'Select one Wellesley campus building where the food is located',
-  `allergens` SET ('soy', 'peanuts', 'dairy', 'gluten', 'eggs', 'shellfish', 'nuts', 'sesame') COMMENT 'list of allergens present in the food'
-);
-
-CREATE TABLE `rating` (
-  `post_id` integer COMMENT 'ID of the post being rated',
-  `guide_email` varchar(30) COMMENT 'email of the guide being rated',
-  `rater_email` varchar(30) COMMENT 'email of the user making the rating',
-  `rating` ENUM ('1', '2', '3', '4', '5') COMMENT 'star-value of the rating',
-  PRIMARY KEY (`post_id`, `guide_email`, `rater_email`)
-);
-
-CREATE TABLE `picture` (
-  `post_id` integer COMMENT 'post id that images are associated with',
-  `image_id` integer not null AUTO_INCREMENT COMMENT 'unique id for image of food item',
-  PRIMARY KEY (`image_id`),
-  foreign key (post_id) references `post`(post_id) 
-        on delete cascade on update cascade
-);
-
-ALTER TABLE `post` ADD FOREIGN KEY (`user_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
-
-ALTER TABLE `rating` ADD FOREIGN KEY (`guide_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
-
-ALTER TABLE `rating` ADD FOREIGN KEY (`rater_email`) REFERENCES `user` (`user_email`) on delete cascade on update cascade;
-
-ALTER TABLE `rating` ADD FOREIGN KEY (`post_id`) REFERENCES `post` (`post_id`) on update cascade;
+
