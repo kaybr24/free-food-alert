@@ -53,8 +53,8 @@ def index():
         post_id = post.get('post_id')
         if post_id:
             post_comments = helper.get_comments_for_post(conn, post_id)
-            #print(post_comments)
             comments[post_id] = post_comments
+            
             # if there is an image to be found
             picIDs = helper.get_images_for_post(conn, post_id)
             if picIDs:
@@ -62,9 +62,6 @@ def index():
                     file = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
                     pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName)
                     #send_from_directory(app.config['UPLOAD_FOLDER'],row['filename'])
-    print(pictures) 
-    print(comments)
-
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
@@ -84,12 +81,6 @@ def index():
         rated_posts = helper.select_user_ratings(conn, uid)
     else:
         rated_posts = {}
-
-    ######################################################      DELETE THIS for key in session before submitting
-    print('**********************************')
-    for key in session:
-        print(key, session.get(key))
-    #####################################################
 
     return render_template('main.html',title='Free Food Alert', comments=comments, search_results=all_posts, 
                             ratedGuides=ratings, cookie=session, img=pictures, rated=rated_posts)

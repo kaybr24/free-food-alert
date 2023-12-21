@@ -19,7 +19,7 @@ def display_posts(conn):
     
     query = """
         SELECT  `post_id`, `user_email`, `description`, `post_date`, 
-        date(`expiration_date`) as 'expiration', `location`, `building`, `allergens`
+        `expiration_date` as 'expiration', `location`, `building`, `allergens`
         FROM post
         WHERE expiration_date >= %s
         order by `post_date` desc;
@@ -28,6 +28,8 @@ def display_posts(conn):
     curs.execute(query, (current_date,))
     posts = curs.fetchall()
     return posts
+
+
 
 def find_guide_ratings(conn, specific_guide=None):
     '''
@@ -123,20 +125,20 @@ def find_post_age(post_date):
         else:
             return (str(delta.seconds) + ' seconds')
 
-def remove_expired_posts(conn):
-    """
-    Remove expired posts from the database.
-    """
-    curs = dbi.dict_cursor(conn)
-    current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    query = """
-        DELETE FROM post
-        WHERE expiration_date < %s
-    """
-    #curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
-    # atomic delete should be thread-safe
-    curs.execute(query, [current_date])
-    conn.commit()
+# def remove_expired_posts(conn):
+#     """
+#     Remove expired posts from the database.
+#     """
+#     curs = dbi.dict_cursor(conn)
+#     current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+#     query = """
+#         DELETE FROM post
+#         WHERE expiration_date < %s
+#     """
+#     #curs.execute("DELETE FROM rating WHERE post_id IN (SELECT post_id FROM post WHERE expiration_date < %s)", (current_date,))
+#     # atomic delete should be thread-safe
+#     curs.execute(query, [current_date])
+#     conn.commit()
     
 def insert_comment(conn, post_id, user_email, comment):
     '''
