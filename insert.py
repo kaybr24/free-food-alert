@@ -44,7 +44,7 @@ def update_user_historical_post_count(conn, user_email):
     Updates the count of historical posts made by user
     """
     curs = conn.cursor()
-    query = "UPDATE user SET post_count = post_count + 1 where user_email = %s"
+    query = "UPDATE user SET post_count = (post_count + 1) where user_email = %s"
     curs.execute(query, (user_email))
     conn.commit()
 

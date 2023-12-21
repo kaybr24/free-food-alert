@@ -185,7 +185,7 @@ def new_post():
         # Redirect to a success page or any other page
         return redirect(url_for('index'))
 
-@app.route('/registration', methods=['GET', 'POST'])
+@app.route('/registration/', methods=['GET', 'POST'])
 def registration():
     '''
     Register a new user and update the database
