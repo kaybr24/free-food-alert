@@ -9,7 +9,6 @@ def insert_post(conn, post_date, information):
     curs = dbi.dict_cursor(conn)
     full_user_email = information['user_email']
     user_email = full_user_email.split('@')[0]
-    # food_name = information['food_name']
     food_description = information['food_description']
     allergens = information.getlist('allergens')
     
@@ -42,7 +41,7 @@ def get_active_user_post_count(conn, user_email):
 
 def update_user_historical_post_count(conn, user_email):
     """
-    Updates the count of historical posts made by user - CURRENTLY FIGHTING OVER SAME COLUMN
+    Updates the count of historical posts made by user
     """
     curs = conn.cursor()
     query = "UPDATE user SET post_count = post_count + 1 where user_email = %s"

@@ -6,7 +6,6 @@ app = Flask(__name__)
 
 # one or the other of these. Defaults to MySQL (PyMySQL)
 # change comment characters to switch to SQLite
-
 import cs304dbi as dbi
 # import cs304dbi_sqlite3 as dbi
 
@@ -24,7 +23,7 @@ from datetime import datetime, timedelta
 # scheduler = BackgroundScheduler()
 
 # File upload handling
-# I am using the static folder because there are no private images that can't be viewed by everyone
+# I am using the static folder because there are no private images that shouldn't be viewed by everyone
 UPLOAD_FOLDER = 'static/uploads/' 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024  # 3 MB
@@ -60,19 +59,18 @@ def index():
             if picIDs:
                 for image in picIDs:
                     file = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
-                    pictures[post_id] = file #send_from_directory(app.config['UPLOAD_FOLDER'], picName)
-                    #send_from_directory(app.config['UPLOAD_FOLDER'],row['filename'])
+                    pictures[post_id] = file 
+
     ## create time since posted tags
     for post in all_posts:
         if 'post_date' in post:
-            #date_posted = datetime.strptime(post['post_date'], '%y-%m-%d %H:%M:%S')
             post['age'] = helper.find_post_age(post['post_date'])
         else:
             post['age'] = ''
 
     # customize page based on login status
     if not session.get('logged_in', False): # if not logged in
-        session['logged_in'] = False
+        session['logged_in'] = False # for easier comparisons in base.html
     
     # customize page based on which posts were rated by this user
     uid = session.get("uid", False)
@@ -142,7 +140,7 @@ def new_post():
     Create a new post with given information
     '''
     if not session.get('logged_in', False): # if not logged in
-        session['logged_in'] = False
+        session['logged_in'] = False # for easier comparison in base.html
         flash("You must be logged in to access this page")
         return redirect(url_for('user_profile'))
     conn = dbi.connect()
@@ -165,7 +163,6 @@ def new_post():
         post_date = datetime.now()
         conn = dbi.connect()
         post_id = insert.insert_post(conn, post_date, request.form)
-        print(">>>POST ID is :", post_id, "USER EMAIL is: ", user_email)
 
         # increment historical post count by 1
         insert.update_user_historical_post_count(conn, user_email)
@@ -178,17 +175,13 @@ def new_post():
             # insert image name into picture table
             conn2 = dbi.connect()
             filetype = file.filename.split('.')[-1]
-            print(f"file type is {filetype}")
             image_id = insert.insert_image(conn2, user_email, post_id, filetype)
+
             # save image to uploads file
             filename = secure_filename(str(post_id) + "_" + str(image_id) + "." + filetype)
-            print("filename is", filename)
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            print(f"***IMAGE SAVED TO {os.path.join(app.config['UPLOAD_FOLDER'], filename)}")
             flash("You inserted a post with an image")
         
-        all_posts = helper.display_posts(conn)
-
         # Redirect to a success page or any other page
         return redirect(url_for('index'))
 
@@ -332,7 +325,6 @@ def login():
     '''
     if request.method == 'GET':
         # Render the login form for GET requests
-        print("***************recieved GET login request")
         return render_template('login.html', title='Log Into Free Food Alert', cookie=session)
 
     if request.method == 'POST':
@@ -369,8 +361,6 @@ def login():
 def add_comment():
     if request.method == 'POST':
         data = request.form
-        print('data')
-        print(data)
         post_id = data.get('post_id')
         user_email = session.get('username')
         comment_text = data.get('comment_text')
@@ -416,7 +406,7 @@ def remove_post():
     return redirect(url_for('user_profile'))
     
 
-@app.route('/edit_post/<int:post_id>', methods=['GET', 'POST'])
+@app.route('/edit-post/<int:post_id>', methods=['GET', 'POST'])
 def edit_post(post_id):
     """
     Allow user to edit values in the given post
@@ -430,6 +420,7 @@ def edit_post(post_id):
     # Get the post data based on post_id
     conn = dbi.connect()
     post_data = helper.get_post_info(conn, post_id)
+    post_data['allergens'] = post_data.get('allergens', '').title().split(',')
 
     # confirm that this post exists and belongs to the user
     if not post_data:
@@ -444,10 +435,10 @@ def edit_post(post_id):
     if image: # exists
         # only use one image
         image = image[0]
-        #print(f"Image should be a dictionary: {type(image)}")
         imageName = helper.construct_file_name(image, app.config['UPLOAD_FOLDER'])
         post_data['image_url'] = imageName
 
+    # render template with existing data
     if request.method == 'GET':
         return render_template('edit_post.html', title='Edit Post', post=post_data, cookie=session, 
                 possible_allergens=information.possible_allergens, locations=information.locations)
