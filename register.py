@@ -17,10 +17,9 @@ def register_user(conn, full_name, wellesley_email, password, date):
 def check_user_exists(conn, wellesley_email):
     """Checks if a user with the given Wellesley College email exists in the database."""
     curs = dbi.dict_cursor(conn)
-    # query = "SELECT * FROM users WHERE wellesley_email = %s", [wellesley_email]
-    curs.execute('''SELECT * from user where user_email=%s ''', [wellesley_email])
+    curs.execute('''SELECT user_email, `name`, join_date, password, food_guide, post_count
+                 from user where user_email=%s ''', [wellesley_email])
     result = curs.fetchall()
-    # result = dbi.query(conn, query, (wellesley_email,), result_set=True)
     
     # If the result set is not empty, the user exists
     return len(result) > 0
